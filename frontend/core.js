@@ -1162,7 +1162,7 @@ function tbStartDrag(ev, s, wrap, el) {
   document.addEventListener("pointerup", up);
 }
 
-// 拖动右下角调宽度：只改换行范围，字号保持固定（用户明确要求过固定字号）
+// 拖动右下角调宽度：只改换行范围，字号保持固定（本项目刻意不做字号选择）
 function tbStartResize(ev, s, el) {
   ev.preventDefault();
   const rect = INK.stage.getBoundingClientRect();

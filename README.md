@@ -29,8 +29,8 @@
 ## 快速开始
 
 ```bash
-git clone <your-repo-url>
-cd study-tool
+git clone git@github.com:Terrence20070515/Self-study_AI_Assistant.git
+cd Self-study_AI_Assistant
 
 python3 -m venv .venv && source .venv/bin/activate
 pip install -r requirements.txt
