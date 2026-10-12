@@ -20,6 +20,13 @@ LOG_PATH = os.path.join(BASE_DIR, "data", "server.log")
 # 代理配置异常时可能干扰本机请求；显式空代理最稳。
 _NO_PROXY = urllib.request.build_opener(urllib.request.ProxyHandler({}))
 
+# 端口被占时给用户的操作提示：命令必须分平台，Windows 没有 lsof / xargs
+_PORT_HINT = (
+    "请在命令提示符执行 netstat -ano | findstr :8765 找到 PID，再 taskkill /PID <pid> /F"
+    if os.name == "nt" else
+    "请执行 lsof -ti:8765 | xargs kill"
+)
+
 
 def server_ready() -> bool:
     try:
@@ -49,7 +56,7 @@ def ensure_server():
             time.sleep(0.5)
         raise RuntimeError(
             "8765 端口有服务在监听，但它没响应健康检查。"
-            "请执行 lsof -ti:8765 | xargs kill 后重新打开。"
+            + _PORT_HINT + " 后重新打开。"
         )
     log = open(LOG_PATH, "ab")
     # 清掉继承来的代理变量：沙箱 / 开发环境的代理端口是动态的，服务进程一旦固化了
@@ -68,7 +75,7 @@ def ensure_server():
     raise RuntimeError(
         "本地服务启动失败。请查看 data/server.log；"
         "若日志里出现 “address already in use”，说明 8765 端口被别的进程占着，"
-        "可在终端执行 lsof -ti:8765 | xargs kill 后重试。"
+        + _PORT_HINT + " 后重试。"
     )
 
 

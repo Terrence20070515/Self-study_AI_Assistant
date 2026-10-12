@@ -1,5 +1,7 @@
 # Self-Learning Space · 本地 AI 学习助手
 
+**中文** | [English](README.en.md)
+
 一个**完全本地运行**的课程学习工作台：把 PDF/Word 课件按课程整理入库，基于自己的资料做**精准问答**（RAG，标注出处页码，检索不到就明说，不编造），并在阅读器里做圈画、批注、AI 逐页注释。
 
 > 定位：给自己的「第二大脑」。数据全部留在本机（SQLite + 文件），只有调用大模型时才联网。
@@ -130,6 +132,19 @@ launcher.py       pywebview 桌面窗口
 - 所有数据（课件、数据库、笔记、聊天记录）**只存在本机 `data/` 目录**，拷走该目录即完整备份
 - API Key 支持 `.env` 环境变量或界面内填写，不存在代码里
 - 除调用大模型 API 外，全程离线（向量模型本地推理）
+
+## 平台支持
+
+| 平台 | 状态 |
+|---|---|
+| macOS | ✓ 主要开发平台 |
+| Windows | ✓ 浏览器模式用 `start.bat`；桌面模式需 WebView2（Win11 自带，Win10 需安装） |
+| Linux | ✓ 桌面模式需 `webkit2gtk` |
+
+```bash
+python launcher.py      # macOS / Linux 桌面窗口
+start.bat               # Windows 浏览器模式
+```
 
 ## License
 
