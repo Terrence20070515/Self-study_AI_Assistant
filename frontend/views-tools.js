@@ -169,6 +169,7 @@ async function renderHandbook() {
   $("#hb-read").classList.toggle("hidden", !info.has);
   const comps = await api(`/api/courses/${courseState.currentId}/assessments`);
   const editing = !!courseState.hbEdit;
+  $("#hb-rescan").classList.toggle("hidden", !info.has || editing);   // 有手册且不在编辑态才给重扫
   $("#btn-hb-edit").classList.toggle("hidden", editing);
   $("#btn-hb-save").classList.toggle("hidden", !editing);
   $("#btn-hb-cancel").classList.toggle("hidden", !editing);
@@ -221,6 +222,28 @@ async function renderHandbook() {
 }
 
 $("#btn-hb-edit").onclick = () => { courseState.hbEdit = true; renderHandbook(); };
+
+// 重新扫描：对已上传的 HandBook 重跑 AI 扫描（考核构成 + DDL → 待办），不必重新上传。
+// DDL 待办按「名称+日期」去重，重复点这个按钮不会刷出重复待办。
+$("#hb-rescan").onclick = guard("重新扫描 HandBook", async () => {
+  if (!courseState.currentId) return;
+  const btn = $("#hb-rescan");
+  const old = btn.textContent;
+  btn.disabled = true;
+  btn.textContent = "扫描中…";
+  try {
+    const r = await api(`/api/courses/${courseState.currentId}/handbook/scan`, { method: "POST" });
+    const parts = [`考核 ${r.components.length} 项`];
+    parts.push(r.added_todos ? `新增待办 ${r.added_todos} 条` : "待办无新增");
+    toast(`扫描完成：${parts.join("，")}${r.note ? "。" + r.note : ""}`);
+    renderHandbook();
+  } catch (e) {
+    toast("扫描失败：" + (e.message || e));
+  } finally {
+    btn.disabled = false;
+    btn.textContent = old;
+  }
+});
 $("#btn-hb-cancel").onclick = () => { courseState.hbEdit = false; renderHandbook(); };
 $("#btn-hb-save").onclick = async () => {
   const items = [...document.querySelectorAll("#hb-tbody tr")].map(tr => ({
@@ -303,29 +326,16 @@ async function loadTodos() {
   box.innerHTML = "";
   if (!todos.length) { box.innerHTML = `<div class="material-empty">还没有待办，添加一条吧</div>`; return; }
   const now = Date.now();
-  for (const td of todos) {
+  const manual = todoSortMode() === "manual";
+  const sortBtn = $("#todo-sort");
+  if (sortBtn) sortBtn.textContent = manual ? "排序：手动" : "排序：按 DDL";
+  fillTodoCourseSelect($("#todo-course"));
+  for (const td of todoOrder(todos)) {
     const row = document.createElement("div");
     row.className = "todo-row" + (td.done ? " todo-done" : "");
-    let dueHtml = `<span class="todo-nodue">无 DDL</span>`;
-    if (td.due) {
-      const d = new Date(td.due);
-      const overdue = !td.done && d.getTime() < now;
-      dueHtml = `<span class="todo-due${overdue ? " overdue" : ""}">DDL ${d.toLocaleString("zh-CN", { month: "2-digit", day: "2-digit", hour: "2-digit", minute: "2-digit" })}${overdue ? " 已过期" : ""}</span>`;
-    }
     row.dataset.sortId = td.id;
-    row.title = "可拖动调整顺序";
-    row.innerHTML = `
-      <span class="drag-handle" title="拖动排序" aria-hidden="true">
-        <svg width="10" height="16" viewBox="0 0 10 16">
-          <circle cx="2.5" cy="3" r="1.4" fill="currentColor"/><circle cx="7.5" cy="3" r="1.4" fill="currentColor"/>
-          <circle cx="2.5" cy="8" r="1.4" fill="currentColor"/><circle cx="7.5" cy="8" r="1.4" fill="currentColor"/>
-          <circle cx="2.5" cy="13" r="1.4" fill="currentColor"/><circle cx="7.5" cy="13" r="1.4" fill="currentColor"/>
-        </svg>
-      </span>
-      <input type="checkbox" class="todo-check" ${td.done ? "checked" : ""}>
-      <span class="todo-content">${esc(td.content)}</span>
-      ${dueHtml}
-      <button class="btn btn-danger btn-sm todo-del">删除</button>`;
+    row.title = manual ? "可拖动调整顺序" : "当前按 DDL 排序；切到「手动」后可拖动";
+    row.innerHTML = todoRowHtml(td, now, manual);
     row.querySelector(".todo-check").onchange = async (e) => {
       await api(`/api/todos/${td.id}`, { method: "PATCH", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ done: e.target.checked }) });
       loadTodos();
@@ -336,21 +346,32 @@ async function loadTodos() {
     };
     box.appendChild(row);
   }
-  makeSortable(box, (ids) => {
-    api("/api/todos/reorder", {
-      method: "POST", headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ ids }),
-    }).catch(() => toast("排序保存失败"));
-  });
+  if (manual) {
+    makeSortable(box, (ids) => {
+      api("/api/todos/reorder", {
+        method: "POST", headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ ids }),
+      }).catch(() => toast("排序保存失败"));
+    });
+  }
 }
+
+$("#todo-sort").onclick = () => {
+  todoSetSortMode(todoSortMode() === "due" ? "manual" : "due");
+  loadTodos();
+};
 
 $("#todo-form").addEventListener("submit", async (e) => {
   e.preventDefault();
   const content = $("#todo-input").value.trim();
   if (!content) return toast("事项内容不能为空");
   await api("/api/todos", { method: "POST", headers: { "Content-Type": "application/json" },
-    body: JSON.stringify({ content, due: $("#todo-due").value }) });
-  $("#todo-input").value = ""; $("#todo-due").value = "";
+    body: JSON.stringify({
+      content,
+      due: $("#todo-due").value,
+      course_id: $("#todo-course").value,
+    }) });
+  $("#todo-input").value = ""; $("#todo-due").value = ""; $("#todo-course").value = "";
   loadTodos();
 });
 

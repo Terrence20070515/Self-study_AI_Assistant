@@ -221,19 +221,77 @@ def _extract_course_code(filename: str) -> str | None:
 HB_SCAN_STATUS: dict[str, dict] = {}
 
 
+def apply_handbook_scan(cid: str, path: str, ext: str) -> dict:
+    """扫描 HandBook 并落库：考核构成 → assessments，DDL → 待办。
+
+    上传时和「手动重扫」共用这一条路径，避免两处各写一遍后逻辑漂移。
+    返回 {"components", "ddls", "skipped", "added_todos", "note"}
+    """
+    res = core.scan_handbook(path, ext)
+    comps, ddls = res["components"], res["ddls"]
+
+    store.replace_assessments(
+        cid, [{"name": c["name"], "weight": c["weight"], "score": None} for c in comps])
+    total = sum(c["weight"] for c in comps)
+    note = None if abs(total - 100) < 0.5 else f"权重合计 {total:g}%，请核对"
+
+    # DDL 落到待办，并记下来源课程（待办列表要靠它区分是哪一科）。
+    # 按「课程 + 名称 + 日期」去重：重扫同一份手册不该刷出一堆重复待办
+    existing = {(t.get("course_id", ""), t["content"], t["due"]) for t in store.list_todos()}
+    added = 0
+    for d in ddls:
+        key = (cid, d["title"], d["due"])
+        if key in existing:
+            continue
+        store.add_todo(d["title"], d["due"], cid)
+        existing.add(key)
+        added += 1
+
+    return {"components": comps, "ddls": ddls, "skipped": res.get("skipped", []),
+            "added_todos": added, "note": note}
+
+
+def find_handbook(cid: str):
+    """返回 (路径, 扩展名)；该课程没有 HandBook 时返回 None。"""
+    from ..config import handbook_path
+    from ..deps import ALLOWED_EXTS   # 注意：ALLOWED_EXTS 定义在 deps，不在 config
+    for e in ALLOWED_EXTS:
+        p = handbook_path(cid, e)
+        if os.path.exists(p):
+            return p, e
+    return None
+
+
 def _scan_handbook_job(cid: str, path: str, ext: str):
     def run():
         try:
-            comps = core.scan_handbook(path, ext)
-            store.replace_assessments(
-                cid, [{"name": c["name"], "weight": c["weight"], "score": None}
-                      for c in comps])
-            total = sum(c["weight"] for c in comps)
-            note = None if abs(total - 100) < 0.5 else f"权重合计 {total:g}%，请核对"
-            HB_SCAN_STATUS[cid] = {"status": "ok", "note": note, "count": len(comps)}
+            r = apply_handbook_scan(cid, path, ext)
+            HB_SCAN_STATUS[cid] = {"status": "ok", "note": r["note"],
+                                   "count": len(r["components"]), "ddls": r["added_todos"]}
         except Exception as e:  # noqa: BLE001
             HB_SCAN_STATUS[cid] = {"status": "failed", "note": str(e)[:200]}
     threading.Thread(target=run, daemon=True).start()
+
+
+@router.post("/api/courses/{cid}/handbook/scan")
+def api_handbook_rescan(cid: str):
+    """对**已上传**的 HandBook 重新扫描，不需要重新上传文件。
+
+    提取考核构成（写入 assessment）与 DDL（写入待办），同步返回结果。
+    """
+    if not store.get_course(cid):
+        raise HTTPException(404, "课程不存在")
+    got = find_handbook(cid)
+    if not got:
+        raise HTTPException(404, "这门课还没有上传 HandBook")
+    path, ext = got
+    try:
+        r = apply_handbook_scan(cid, path, ext)
+    except RuntimeError as e:      # 未配置 API Key
+        raise HTTPException(400, str(e))
+    except ValueError as e:
+        raise HTTPException(400, str(e))
+    return {"ok": True, **r}
 
 
 @router.post("/api/batch-import")

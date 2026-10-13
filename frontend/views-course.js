@@ -279,7 +279,7 @@ function switchTab(tab) {
   $("#panel-materials").classList.toggle("hidden", tab !== "materials");
   $("#panel-study").classList.toggle("hidden", tab !== "study");
   $("#panel-handbook").classList.toggle("hidden", tab !== "handbook");
-  if (tab === "study") renderQuizScope();
+  if (tab === "study") { renderQuizScope(); loadCoverage(); }
   if (tab === "handbook") renderHandbook();
 }
 document.querySelectorAll(".tab").forEach(t => t.onclick = () => switchTab(t.dataset.tab));

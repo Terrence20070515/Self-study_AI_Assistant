@@ -15,7 +15,7 @@ def api_add_todo(body: dict):
     content = (body.get("content") or "").strip()
     if not content:
         raise HTTPException(400, "事项内容不能为空")
-    store.add_todo(content, str(body.get("due") or ""))
+    store.add_todo(content, str(body.get("due") or ""), str(body.get("course_id") or ""))
     return {"ok": True}
 
 
@@ -38,6 +38,8 @@ def api_update_todo(tid: int, body: dict):
         fields["content"] = str(body["content"]).strip()
     if "due" in body:
         fields["due"] = str(body["due"] or "")
+    if "course_id" in body:
+        fields["course_id"] = str(body["course_id"] or "")
     if fields:
         store.update_todo(tid, **fields)
     return {"ok": True}

@@ -58,8 +58,15 @@ $("#brand-home").onclick = guard("打开主页", showHome);
 function renderHomeTodos(todos) {
   const list = todos.filter(t => !t.done);
   const done = todos.filter(t => t.done);
+  const now = Date.now();
+  // 顺带报一下 7 天内到期的条数 —— 首页一眼就能看出「最近有什么要交」
+  const soon = list.filter(t => {
+    if (!t.due) return false;
+    const ms = new Date(t.due).getTime() - now;
+    return ms >= 0 && ms <= 7 * 86400000;
+  }).length;
   $("#home-todo-count").textContent = list.length
-    ? `待办 ${list.length} 项${done.length ? ` · 已完成 ${done.length}` : ""}`
+    ? `未完成 ${list.length} 项${soon ? ` · ${soon} 项 7 天内到期` : ""}${done.length ? ` · 已完成 ${done.length}` : ""}`
     : (done.length ? `已全部完成 · ${done.length} 项` : "");
   const box = $("#home-todo-list");
   box.innerHTML = "";
@@ -67,34 +74,17 @@ function renderHomeTodos(todos) {
     box.innerHTML = `<div class="material-empty">还没有待办。上面写一条，或在「全部管理」里批量整理</div>`;
     return;
   }
-  const now = Date.now();
-  // 顺序完全交给后端的 ord（即你拖出来的顺序），前端不再自作主张排序；
-  // 只把已完成的沉到列表底部（filter 保持了原顺序，所以完成项之间的相对顺序也稳定）
-  for (const td of [...list, ...done]) {
+  const manual = todoSortMode() === "manual";
+  const sortBtn = $("#home-todo-sort");
+  if (sortBtn) sortBtn.textContent = manual ? "排序：手动" : "排序：按 DDL";
+  fillTodoCourseSelect($("#home-todo-course"));
+  // 顺序：默认按 DDL 升序（最紧的在最上），切到手动则完全按你拖出来的 ord
+  for (const td of todoOrder(todos)) {
     const row = document.createElement("div");
     row.className = "todo-row" + (td.done ? " todo-done" : "");
-    let dueHtml = `<span class="todo-nodue">无 DDL</span>`;
-    if (td.due) {
-      const d = new Date(td.due);
-      const overdue = !td.done && d.getTime() < now;
-      const hours = (d.getTime() - now) / 3600000;
-      const left = overdue ? "" : (hours < 24 ? ` · 还剩 ${Math.max(1, Math.round(hours))} 小时` : ` · 还剩 ${Math.round(hours / 24)} 天`);
-      dueHtml = `<span class="todo-due${overdue ? " overdue" : ""}">DDL ${d.toLocaleString("zh-CN", { month: "2-digit", day: "2-digit", hour: "2-digit", minute: "2-digit" })}${overdue ? " 已过期" : left}</span>`;
-    }
     row.dataset.sortId = td.id;
-    row.title = "可拖动调整顺序";
-    row.innerHTML = `
-      <span class="drag-handle" title="拖动排序" aria-hidden="true">
-        <svg width="10" height="16" viewBox="0 0 10 16">
-          <circle cx="2.5" cy="3" r="1.4" fill="currentColor"/><circle cx="7.5" cy="3" r="1.4" fill="currentColor"/>
-          <circle cx="2.5" cy="8" r="1.4" fill="currentColor"/><circle cx="7.5" cy="8" r="1.4" fill="currentColor"/>
-          <circle cx="2.5" cy="13" r="1.4" fill="currentColor"/><circle cx="7.5" cy="13" r="1.4" fill="currentColor"/>
-        </svg>
-      </span>
-      <input type="checkbox" class="todo-check" ${td.done ? "checked" : ""}>
-      <span class="todo-content">${esc(td.content)}</span>
-      ${dueHtml}
-      <button class="btn btn-danger btn-sm todo-del">删除</button>`;
+    row.title = manual ? "可拖动调整顺序" : "当前按 DDL 排序；切到「手动」后可拖动";
+    row.innerHTML = todoRowHtml(td, now, manual);
     row.querySelector(".todo-check").onchange = guard("勾选待办", async (e) => {
       await api(`/api/todos/${td.id}`, { method: "PATCH", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ done: e.target.checked }) });
       renderDashboard();   // 改数据 → 回统一入口刷新（不与其他渲染函数互调）
@@ -106,13 +96,20 @@ function renderHomeTodos(todos) {
     box.appendChild(row);
   }
   // 拖完即存顺序（未完成与已完成一起提交，保持展示顺序一致）
-  makeSortable(box, (ids) => {
-    api("/api/todos/reorder", {
-      method: "POST", headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ ids }),
-    }).catch(() => toast("排序保存失败"));
-  });
+  if (manual) {
+    makeSortable(box, (ids) => {
+      api("/api/todos/reorder", {
+        method: "POST", headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ ids }),
+      }).catch(() => toast("排序保存失败"));
+    });
+  }
 }
+
+$("#home-todo-sort").onclick = () => {
+  todoSetSortMode(todoSortMode() === "due" ? "manual" : "due");
+  renderDashboard();
+};
 
 $("#home-todo-form").addEventListener("submit", guard("添加待办", async (e) => {
   e.preventDefault();
@@ -120,10 +117,15 @@ $("#home-todo-form").addEventListener("submit", guard("添加待办", async (e) 
   if (!content) return toast("事项内容不能为空");
   await api("/api/todos", {
     method: "POST", headers: { "Content-Type": "application/json" },
-    body: JSON.stringify({ content, due: $("#home-todo-due").value }),
+    body: JSON.stringify({
+      content,
+      due: $("#home-todo-due").value,
+      course_id: $("#home-todo-course").value,
+    }),
   });
   $("#home-todo-input").value = "";
   $("#home-todo-due").value = "";
+  $("#home-todo-course").value = "";
   renderDashboard();
 }));
 $("#home-todo-go").onclick = guard("打开待办事项", () => document.getElementById("btn-todos").click());

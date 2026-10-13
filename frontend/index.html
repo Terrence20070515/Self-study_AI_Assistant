@@ -4,7 +4,7 @@
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
 <title>Self-Learning Space</title>
-<link rel="stylesheet" href="main.css?v=20261012b">
+<link rel="stylesheet" href="main.css?v=20261013g">
 </head>
 <body>
 <div class="layout">
@@ -76,11 +76,13 @@
           <div class="panel-head">
             <h3>待办事项 <span class="muted" id="home-todo-count"></span></h3>
             <div class="panel-tools">
+              <button id="home-todo-sort" class="btn btn-ghost btn-sm">排序：按 DDL</button>
               <button id="home-todo-go" class="btn btn-ghost btn-sm">全部管理</button>
             </div>
           </div>
           <form id="home-todo-form" class="home-todo-form">
             <input id="home-todo-input" class="input" placeholder="加一条待办，回车即添加" autocomplete="off">
+            <select id="home-todo-course" class="input input-sm" title="属于哪门课（可选）"></select>
             <input id="home-todo-due" type="datetime-local" class="input input-sm">
             <button type="submit" class="btn btn-primary btn-sm">添加</button>
           </form>
@@ -147,6 +149,7 @@
             <h3>HandBook 学习指引</h3>
             <div class="panel-tools">
               <button id="hb-read" class="btn btn-outline btn-sm">阅读手册</button>
+              <button id="hb-rescan" class="btn btn-ghost btn-sm hidden" title="重新扫描考核构成与 DDL，不需要重新上传文件">重新扫描</button>
               <button id="btn-hb-edit" class="btn btn-outline btn-sm">编辑</button>
               <button id="btn-hb-save" class="btn btn-primary btn-sm hidden">保存</button>
               <button id="btn-hb-cancel" class="btn btn-ghost btn-sm hidden">取消</button>
@@ -189,22 +192,23 @@
 
       <!-- 互动学习 -->
       <section id="panel-study" class="tab-panel hidden">
-        <!-- 出题 -->
+        <!-- 练习：出题 → 作答判分 → 错题重练（学习闭环的后半段） -->
         <div class="panel">
           <div class="panel-head">
-            <h3>一键出题</h3>
+            <h3>练习</h3>
             <div class="panel-tools">
               <select id="quiz-num" class="input input-sm">
                 <option value="5">5 题</option><option value="10">10 题</option>
                 <option value="15">15 题</option><option value="20">20 题</option>
               </select>
               <select id="quiz-kind" class="input input-sm">
-                <option value="mixed">混合题型</option>
                 <option value="choice">仅选择题</option>
+                <option value="mixed">混合题型</option>
                 <option value="short">仅简答题</option>
               </select>
               <button id="btn-toggle-quiz-scope" class="btn btn-outline btn-sm">选择范围</button>
-              <button id="btn-quiz" class="btn btn-primary btn-sm">一键出题</button>
+              <button id="btn-quiz-wrong" class="btn btn-outline btn-sm">错题重练</button>
+              <button id="btn-quiz" class="btn btn-primary btn-sm">开始练习</button>
             </div>
           </div>
           <div id="quiz-scope" class="quiz-scope hidden">
@@ -218,6 +222,19 @@
               <span class="muted" id="quiz-scope-count"></span>
             </div>
           </div>
+          <div id="quiz-coverage" class="quiz-coverage hidden">
+            <div class="cov-row">
+              <span class="cov-label">知识点覆盖</span>
+              <span class="cov-track"><i id="cov-fill"></i></span>
+              <span class="cov-pct" id="cov-pct">0%</span>
+              <button id="btn-cov-detail" class="btn btn-ghost btn-sm">按资料明细</button>
+              <button id="btn-quiz-full" class="btn btn-primary btn-sm">全面覆盖</button>
+            </div>
+            <div class="cov-nums" id="cov-nums"></div>
+            <div id="cov-detail" class="cov-detail hidden"></div>
+            <div id="cov-progress" class="cov-progress hidden"></div>
+          </div>
+          <div id="quiz-bar" class="quiz-bar hidden"></div>
           <div id="quiz-result" class="quiz-result"></div>
         </div>
         <!-- 聊天 -->
@@ -244,12 +261,16 @@
     <div id="todo-view" class="course-view hidden">
       <header class="course-header">
         <div><h1>待办事项</h1>
-          <div class="course-sub">按 DDL 排序，过期标红</div></div>
-        <button id="btn-back-todo" class="btn btn-ghost">← 返回</button>
+          <div class="course-sub">默认按 DDL 升序，最近要交的排在最上</div></div>
+        <div class="panel-tools">
+          <button id="todo-sort" class="btn btn-ghost">排序：按 DDL</button>
+          <button id="btn-back-todo" class="btn btn-ghost">← 返回</button>
+        </div>
       </header>
       <section class="panel">
         <form id="todo-form" class="todo-form">
           <input id="todo-input" class="input" placeholder="具体事项，如 CPT203 CW2 截止提交" autocomplete="off">
+          <select id="todo-course" class="input input-sm" title="属于哪门课（可选）"></select>
           <input id="todo-due" type="datetime-local" class="input input-sm">
           <button type="submit" class="btn btn-primary">添加</button>
         </form>
@@ -552,11 +573,11 @@
     }, 3000);
   });
 </script>
-<script src="core.js?v=20261012b"></script>
-  <script src="views-home.js?v=20261012b"></script>
-  <script src="views-course.js?v=20261012b"></script>
-  <script src="views-quiz.js?v=20261012b"></script>
-  <script src="views-tools.js?v=20261012b"></script>
-  <script src="main.js?v=20261012b"></script>
+<script src="core.js?v=20261013g"></script>
+  <script src="views-home.js?v=20261013g"></script>
+  <script src="views-course.js?v=20261013g"></script>
+  <script src="views-quiz.js?v=20261013g"></script>
+  <script src="views-tools.js?v=20261013g"></script>
+  <script src="main.js?v=20261013g"></script>
 </body>
 </html>

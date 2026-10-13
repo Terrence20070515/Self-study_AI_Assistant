@@ -142,19 +142,21 @@ async def api_upload_handbook(cid: str, file: UploadFile = File(...)):
             os.remove(handbook_path(cid, e))
         except OSError:
             pass
+    # 复用 handbook 的扫描落库逻辑（考核构成 → assessment，DDL → 待办），
+    # 与「手动重扫」走同一条路径；函数内 import 避免与 materials 模块循环依赖
+    from .materials import apply_handbook_scan
     try:
-        comps = core.scan_handbook(hpath, ext)
+        r = apply_handbook_scan(cid, hpath, ext)
     except RuntimeError as e:  # 未配置 Key
         raise HTTPException(400, str(e))
     except ValueError as e:
         raise HTTPException(400, str(e))
-    store.replace_assessments(cid, [{"name": c["name"], "weight": c["weight"], "score": None}
-                                    for c in comps])
-    total = sum(c["weight"] for c in comps)
     return {
-        "components": comps,
-        "weight_total": total,
-        "note": None if abs(total - 100) < 0.5 else f"扫描出的权重合计为 {total:g}%，不是 100%，请手工核对修正",
+        "components": r["components"],
+        "ddls": r["ddls"],
+        "added_todos": r["added_todos"],
+        "weight_total": sum(c["weight"] for c in r["components"]),
+        "note": r["note"],
     }
 
 

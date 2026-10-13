@@ -113,7 +113,7 @@ def init_db():
                 PRIMARY KEY(material_id, page)
             )"""
         )
-        # 待办事项（DDL + 具体事项；ord 为手动排序位）
+        # 待办事项（DDL + 具体事项；ord 为手动排序位；course_id 关联来源课程）
         c.execute(
             """CREATE TABLE IF NOT EXISTS todos(
                 id INTEGER PRIMARY KEY AUTOINCREMENT,
@@ -121,9 +121,52 @@ def init_db():
                 due TEXT NOT NULL DEFAULT '',
                 done INTEGER NOT NULL DEFAULT 0,
                 ord INTEGER NOT NULL DEFAULT 0,
+                created_at REAL NOT NULL,
+                course_id TEXT NOT NULL DEFAULT ''
+            )"""
+        )
+        # 练习题库：出过的题落库。题目有 id 才能记录作答、统计薄弱点、重练错题；
+        # 不落库的话每次出题都是一次性消费，学习闭环就断在「答完即弃」。
+        c.execute(
+            """CREATE TABLE IF NOT EXISTS quiz_questions(
+                id INTEGER PRIMARY KEY AUTOINCREMENT,
+                course_id TEXT NOT NULL,
+                kind TEXT NOT NULL DEFAULT 'choice',
+                question TEXT NOT NULL,
+                options TEXT NOT NULL DEFAULT '[]',
+                answer TEXT NOT NULL DEFAULT '',
+                explanation TEXT NOT NULL DEFAULT '',
+                refs TEXT NOT NULL DEFAULT '[]',
+                unit_key TEXT NOT NULL DEFAULT '',
                 created_at REAL NOT NULL
             )"""
         )
+        c.execute("CREATE INDEX IF NOT EXISTS idx_quiz_course ON quiz_questions(course_id)")
+        # 作答记录：每次作答都留痕（保留全部历史；薄弱点按「最近一次」判断）
+        c.execute(
+            """CREATE TABLE IF NOT EXISTS quiz_attempts(
+                id INTEGER PRIMARY KEY AUTOINCREMENT,
+                question_id INTEGER NOT NULL,
+                user_answer TEXT NOT NULL DEFAULT '',
+                correct INTEGER NOT NULL DEFAULT 0,
+                answered_at REAL NOT NULL
+            )"""
+        )
+        c.execute("CREATE INDEX IF NOT EXISTS idx_attempt_q ON quiz_attempts(question_id)")
+        # 覆盖率台账：记录每个知识点单元是否出过题。
+        # unit_key 由「资料 + 页 + 段号」拼成（见 core.build_knowledge_units）——
+        # 只要资料内容不变，同一页永远算出同一个 key，覆盖率才能跨次累积。
+        c.execute(
+            """CREATE TABLE IF NOT EXISTS quiz_coverage(
+                unit_key TEXT PRIMARY KEY,
+                course_id TEXT NOT NULL,
+                material_id TEXT NOT NULL,
+                page INTEGER NOT NULL DEFAULT 0,
+                question_cnt INTEGER NOT NULL DEFAULT 0,
+                updated_at REAL NOT NULL
+            )"""
+        )
+        c.execute("CREATE INDEX IF NOT EXISTS idx_coverage_course ON quiz_coverage(course_id)")
         # 阅读进度（每份资料读到第几页）
         c.execute(
             """CREATE TABLE IF NOT EXISTS material_progress(
@@ -170,6 +213,12 @@ def _migrate():
         if "ord" not in cols:                      # 老库补 ord，按 id 顺序初始化
             c.execute("ALTER TABLE todos ADD COLUMN ord INTEGER NOT NULL DEFAULT 0")
             c.execute("UPDATE todos SET ord = id")
+        if "course_id" not in cols:                # 老库补课程归属（'' = 不属于任何课程）
+            c.execute("ALTER TABLE todos ADD COLUMN course_id TEXT NOT NULL DEFAULT ''")
+        # 老库补台账关联列（'' = 这道题没记知识点，不计入覆盖率）
+        qcols = {r["name"] for r in c.execute("PRAGMA table_info(quiz_questions)").fetchall()}
+        if qcols and "unit_key" not in qcols:
+            c.execute("ALTER TABLE quiz_questions ADD COLUMN unit_key TEXT NOT NULL DEFAULT ''")
         # 从未排过序（全为 0）时按 id 初始化一次
         if c.execute("SELECT COUNT(*) AS n FROM todos WHERE ord != 0").fetchone()["n"] == 0:
             c.execute("UPDATE todos SET ord = id")
@@ -344,10 +393,16 @@ def move_material(mid: str, course_id: str):
 # ---------- 待办事项 ----------
 
 def list_todos():
-    """按手动顺序（ord）返回；未排序过的按 id。未完成/已完成的分组交给前端。"""
+    """按手动顺序（ord）返回；未排序过的按 id。未完成/已完成的分组交给前端。
+
+    同时带出 course_code / course_name —— 待办列表要能一眼看出「这条属于哪门课」，
+    否则从 HandBook 扫进来的 DDL 会分不清是哪一科。
+    """
     with _conn() as c:
         rows = c.execute(
-            "SELECT * FROM todos ORDER BY CASE WHEN ord=0 THEN id ELSE ord END ASC, id ASC"
+            "SELECT t.*, COALESCE(c.code,'') AS course_code, COALESCE(c.name,'') AS course_name"
+            " FROM todos t LEFT JOIN courses c ON c.id = t.course_id"
+            " ORDER BY CASE WHEN t.ord=0 THEN t.id ELSE t.ord END ASC, t.id ASC"
         ).fetchall()
         return [dict(r) for r in rows]
 
@@ -359,15 +414,15 @@ def reorder_todos(ids: list):
                       [(i, int(tid)) for i, tid in enumerate(ids, start=1)])
 
 
-def add_todo(content: str, due: str):
+def add_todo(content: str, due: str, course_id: str = ""):
     with _conn() as c:
         c.execute(
-            "INSERT INTO todos(content, due, created_at) VALUES(?,?,?)",
-            (content.strip(), due or "", now()),
+            "INSERT INTO todos(content, due, course_id, created_at) VALUES(?,?,?,?)",
+            (content.strip(), due or "", course_id or "", now()),
         )
 
 
-TODO_FIELDS = {"content", "due", "done", "ord"}
+TODO_FIELDS = {"content", "due", "done", "ord", "course_id"}
 
 
 def update_todo(todo_id: int, **fields):
@@ -506,6 +561,162 @@ def delete_todo(todo_id: int):
         c.execute("DELETE FROM todos WHERE id=?", (todo_id,))
 
 
+# ---------- 练习：题库 / 作答 / 薄弱点 ----------
+# 这一层是学习闭环的后半段：出题 → 作答 → 判分 → 累积薄弱点 → 只重练错过的。
+
+def _quiz_row(r) -> dict:
+    """把库里的行转成题目对象（options / refs 是 JSON 文本，这里还原）。"""
+    d = dict(r)
+    for k in ("options", "refs"):
+        try:
+            d[k] = json.loads(d.get(k) or "[]")
+        except (TypeError, ValueError):
+            d[k] = []
+    return d
+
+
+def save_quiz_questions(course_id: str, questions: list) -> list:
+    """一次出题的题目全部落库，返回带 id 的题目列表（前端靠 id 提交作答）。
+
+    题目与覆盖率台账**写在同一个事务里** —— 题存了但台账漏记，覆盖率就会偏低，
+    而这种偏差在界面上是「明明练过却说自己没覆盖」，很难被发现。
+    """
+    out = []
+    with _conn() as c:
+        for q in questions or []:
+            opts = q.get("options") or []
+            # 出题侧不返回 kind，这里按有无选项判定（选择题才有选项）
+            kind = str(q.get("kind") or ("choice" if opts else "short"))
+            unit_key = str(q.get("unit_key") or "")
+            cur = c.execute(
+                "INSERT INTO quiz_questions(course_id, kind, question, options, answer,"
+                " explanation, refs, unit_key, created_at) VALUES(?,?,?,?,?,?,?,?,?)",
+                (
+                    course_id,
+                    kind,
+                    str(q.get("question") or ""),
+                    json.dumps(opts, ensure_ascii=False),
+                    str(q.get("answer") or ""),
+                    str(q.get("explanation") or ""),
+                    json.dumps(q.get("refs") or [], ensure_ascii=False),
+                    unit_key,
+                    now(),
+                ),
+            )
+            item = dict(q)
+            item["id"] = cur.lastrowid
+            item["kind"] = kind
+            out.append(item)
+
+        for q in questions or []:
+            uk = str(q.get("unit_key") or "")
+            if not uk:
+                continue                      # 没有知识点归属的题（如纯抽题）不计入覆盖率
+            c.execute(
+                "INSERT INTO quiz_coverage(unit_key, course_id, material_id, page,"
+                " question_cnt, updated_at) VALUES(?,?,?,?,1,?)"
+                " ON CONFLICT(unit_key) DO UPDATE SET"
+                " question_cnt = question_cnt + 1, updated_at = excluded.updated_at",
+                (uk, course_id, str(q.get("material_id") or ""),
+                 int(q.get("page") or 0), now()),
+            )
+    return out
+
+
+def covered_unit_keys(course_id: str) -> set:
+    """该课程已出过题的知识点单元集合（覆盖率分子）。"""
+    with _conn() as c:
+        rows = c.execute(
+            "SELECT unit_key FROM quiz_coverage WHERE course_id=? AND question_cnt>0",
+            (course_id,),
+        ).fetchall()
+        return {r["unit_key"] for r in rows}
+
+
+def coverage_stats(course_id: str) -> dict:
+    with _conn() as c:
+        row = c.execute(
+            "SELECT COUNT(*) AS n, COALESCE(SUM(question_cnt),0) AS q FROM quiz_coverage"
+            " WHERE course_id=? AND question_cnt>0",
+            (course_id,),
+        ).fetchone()
+    return {"covered": row["n"], "covered_questions": int(row["q"] or 0)}
+
+
+def coverage_by_material(course_id: str) -> dict:
+    """按资料聚合已覆盖的单元数（总数由调用方按 chunk 字数算）。"""
+    with _conn() as c:
+        rows = c.execute(
+            "SELECT material_id, COUNT(*) AS n FROM quiz_coverage"
+            " WHERE course_id=? AND question_cnt>0 GROUP BY material_id",
+            (course_id,),
+        ).fetchall()
+        return {r["material_id"]: int(r["n"]) for r in rows}
+
+
+def get_quiz_question(qid: int):
+    with _conn() as c:
+        r = c.execute("SELECT * FROM quiz_questions WHERE id=?", (int(qid),)).fetchone()
+        return _quiz_row(r) if r else None
+
+
+def record_attempt(question_id: int, user_answer: str, correct: bool):
+    """记录一次作答。历史全留（同一题多次作答都存），薄弱点按最近一次判断。"""
+    with _conn() as c:
+        c.execute(
+            "INSERT INTO quiz_attempts(question_id, user_answer, correct, answered_at)"
+            " VALUES(?,?,?,?)",
+            (int(question_id), str(user_answer or ""), 1 if correct else 0, now()),
+        )
+
+
+def _latest_attempt_join():
+    """只取每题「最近一次」作答的 JOIN 片段（用 MAX(id) 定位，比时间戳稳）。"""
+    return (
+        " JOIN quiz_attempts a ON a.id ="
+        " (SELECT id FROM quiz_attempts WHERE question_id=q.id ORDER BY id DESC LIMIT 1)"
+    )
+
+
+def list_wrong_questions(course_id: str, limit: int = 50) -> list:
+    """薄弱点：最近一次作答是错的题（后续答对了就不再出现）。"""
+    with _conn() as c:
+        rows = c.execute(
+            "SELECT q.*, a.user_answer, a.answered_at,"
+            " (SELECT COUNT(*) FROM quiz_attempts x WHERE x.question_id=q.id) AS attempts"
+            " FROM quiz_questions q" + _latest_attempt_join() +
+            " WHERE q.course_id=? AND a.correct=0"
+            " ORDER BY a.id DESC LIMIT ?",
+            (course_id, int(limit)),
+        ).fetchall()
+        return [_quiz_row(r) for r in rows]
+
+
+def quiz_stats(course_id: str) -> dict:
+    """练习统计：出题数、已答数、答对率、待重练数。"""
+    with _conn() as c:
+        total_q = c.execute(
+            "SELECT COUNT(*) AS n FROM quiz_questions WHERE course_id=?", (course_id,)
+        ).fetchone()["n"]
+        row = c.execute(
+            "SELECT COUNT(*) AS n, COALESCE(SUM(a.correct),0) AS ok FROM quiz_questions q"
+            + _latest_attempt_join() +
+            " WHERE q.course_id=?", (course_id,)
+        ).fetchone()
+        answered, ok = row["n"], int(row["ok"] or 0)
+        wrong = c.execute(
+            "SELECT COUNT(*) AS n FROM quiz_questions q" + _latest_attempt_join() +
+            " WHERE q.course_id=? AND a.correct=0", (course_id,)
+        ).fetchone()["n"]
+    return {
+        "questions": total_q,
+        "answered": answered,
+        "correct": ok,
+        "accuracy": round(ok * 100 / answered, 1) if answered else None,
+        "wrong": wrong,
+    }
+
+
 # ---------- 成绩构成 ----------
 
 def list_assessments(course_id: str):
@@ -605,19 +816,46 @@ def all_chunks_with_vectors(course_id: str = ""):
 
 
 def chunks_for_materials(material_ids: list[str]):
-    """按资料 ID 取分块（用于出题），按资料和页码排序。"""
+    """按资料 ID 取分块（用于出题），按资料 / 页 / 块序排序。
+
+    带上 ord 是必需的：同一页的多个块要按 ord 拼回原文顺序，
+    顺序错了合并出来的「知识点」就是乱的。
+    """
     if not material_ids:
         return []
     marks = ",".join("?" * len(material_ids))
     with _conn() as c:
         rows = c.execute(
-            f"""SELECT ch.material_id, ch.page, ch.text, m.orig_name, m.ext
+            f"""SELECT ch.material_id, ch.page, ch.ord, ch.text, m.orig_name, m.ext
                 FROM chunks ch JOIN materials m ON m.id = ch.material_id
                 WHERE ch.material_id IN ({marks}) AND m.deleted=0
-                ORDER BY ch.material_id, ch.page""",
+                ORDER BY ch.material_id, ch.page, ch.ord""",
             material_ids,
         ).fetchall()
         return [dict(r) for r in rows]
+
+
+def chunk_sizes_for_materials(material_ids: list[str]):
+    """按 (资料, 页) 聚合出字数，**不读正文**。
+
+    覆盖率统计只需要知道每页多大（据此算拆成几个知识点），不需要正文，
+    所以走这条轻量查询 —— 全库上万块时，读不回文本的差别很明显。
+    返回 [(material_id, page, chars), ...]
+    """
+    ids = [m for m in (material_ids or []) if isinstance(m, str)]
+    if not ids:
+        return []
+    marks = ",".join("?" * len(ids))
+    with _conn() as c:
+        rows = c.execute(
+            f"""SELECT ch.material_id, ch.page, COALESCE(SUM(LENGTH(ch.text)),0) AS chars
+                FROM chunks ch JOIN materials m ON m.id = ch.material_id
+                WHERE ch.material_id IN ({marks}) AND m.deleted=0
+                GROUP BY ch.material_id, ch.page
+                ORDER BY ch.material_id, ch.page""",
+            ids,
+        ).fetchall()
+        return [(r["material_id"], int(r["page"]), int(r["chars"])) for r in rows]
 
 
 # ---------- messages ----------

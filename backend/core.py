@@ -592,10 +592,140 @@ def docx_to_html_cached(path: str) -> str:
     return html
 
 
-def scan_handbook(path: str, ext: str = "pdf") -> list[dict]:
-    """AI 扫描 HandBook，提取 Assessment Component（名称+权重%）。
+# ---------- HandBook 日期解析 ----------
+# HandBook 里的日期写法杂（13/Dec/2026、13/12/2026、2026-12-13、Dec 13, 2026），
+# 且常带时刻（13/Dec/2026 23:59）。**换算一律在 Python 侧做，不交给模型**——
+# 让模型自行换算是日期写错的直接来源（实测编出过原文根本不存在的年份）。
 
-    只做预填，用户可完全手工修改。"""
+_MONTH_NAMES = {
+    m: i for i, m in enumerate(
+        ["jan", "feb", "mar", "apr", "may", "jun",
+         "jul", "aug", "sep", "oct", "nov", "dec"], 1)
+}
+
+
+def _month_num(token: str):
+    """'Dec' / 'December' / '12' → 12；认不出返回 None。"""
+    t = (token or "").strip().lower().rstrip(".")
+    if t[:3] in _MONTH_NAMES:
+        return _MONTH_NAMES[t[:3]]
+    if t.isdigit() and 1 <= int(t) <= 12:
+        return int(t)
+    return None
+
+
+def parse_date_text(raw: str):
+    """日期文字 → 'YYYY-MM-DD' 或 'YYYY-MM-DDTHH:MM'；认不出返回 None。
+
+    刻意只认「明确的年月日」，不做任何推算（比如"只在手册里出现过的年份"这种）。
+    认不出就让调用方丢弃这条，而不是猜一个日期出来。
+    """
+    if not raw:
+        return None
+    s = str(raw).strip()
+    day = mon = year = None
+
+    m = re.search(r"\b(\d{4})[-/.](\d{1,2})[-/.](\d{1,2})\b", s)          # 2026-12-13
+    if m:
+        year, mon, day = int(m.group(1)), int(m.group(2)), int(m.group(3))
+    else:
+        m = re.search(r"\b(\d{1,2})[-/.](\d{1,2}|[A-Za-z]{3,9})[-/.](\d{4})\b",
+                      s)                                                   # 13/Dec/2026、13/12/2026
+        if m:
+            day, year, mon = int(m.group(1)), int(m.group(3)), _month_num(m.group(2))
+        else:
+            m = re.search(r"\b([A-Za-z]{3,9})\.?\s+(\d{1,2})(?:st|nd|rd|th)?,?\s+(\d{4})\b",
+                          s)                                               # Dec 13, 2026
+            if m:
+                mon, day, year = _month_num(m.group(1)), int(m.group(2)), int(m.group(3))
+            else:
+                m = re.search(r"\b(\d{1,2})(?:st|nd|rd|th)?\s+([A-Za-z]{3,9})\.?,?\s+(\d{4})\b",
+                              s)                                           # 13 December 2026
+                if m:
+                    day, mon, year = int(m.group(1)), _month_num(m.group(2)), int(m.group(3))
+
+    if not (day and mon and year):
+        return None
+    if not (1 <= day <= 31 and 1 <= mon <= 12 and 1990 <= year <= 2100):
+        return None
+
+    hh = mm = None
+    t = re.search(r"\b(\d{1,2}):(\d{2})\b", s)
+    if t and int(t.group(1)) <= 23 and int(t.group(2)) <= 59:
+        hh, mm = int(t.group(1)), int(t.group(2))
+
+    base = f"{year:04d}-{mon:02d}-{day:02d}"
+    return f"{base}T{hh:02d}:{mm:02d}" if hh is not None else base
+
+
+# 扫原文日期用的模式（覆盖 parse_date_text 支持的全部写法）
+_DATE_SCAN_RE = re.compile(
+    r"\b\d{4}[-/.]\d{1,2}[-/.]\d{1,2}\b"
+    r"|\b\d{1,2}[-/.]\d{1,2}[-/.]\d{4}\b"
+    r"|\b\d{1,2}[-/.][A-Za-z]{3,9}[-/.]\d{4}\b"
+    r"|\b[A-Za-z]{3,9}\.?\s+\d{1,2}(?:st|nd|rd|th)?,?\s+\d{4}\b"
+    r"|\b\d{1,2}(?:st|nd|rd|th)?\s+[A-Za-z]{3,9}\.?,?\s+\d{4}\b"
+)
+
+
+def collect_dates(text: str) -> set:
+    """扫出原文里**真实存在**的日期（YYYY-MM-DD）集合，用作防幻觉白名单。"""
+    out = set()
+    for m in _DATE_SCAN_RE.finditer(text or ""):
+        iso = parse_date_text(m.group(0))
+        if iso:
+            out.add(iso[:10])
+    return out
+
+
+def _irrelevant_spans(text: str) -> list:
+    """原文里「不是课程 DDL」的字符区间：Cut-off Date 行、Resit Assessment 区块。
+
+    注意这里返回的是**区间**而不是日期值 —— 同一个日期可能既出现在补考区块里，
+    又（作为真正的 Due Date）出现在主考核表格里（ISA104 的 09/Oct/2026 就是如此）。
+    按日期值剔除会连带把合法的那次也删掉，所以必须按位置判断。
+    """
+    spans = []
+    for m in re.finditer(r"Cut-?off\s*Date[^\n]{0,120}", text or "", re.I):
+        spans.append((m.start(), m.end()))
+    for m in re.finditer(r"Resit\s+Assessment", text or "", re.I):
+        end = m.end() + 1200
+        stop = re.search(r"SECTION\s+[A-Z]", text[m.end():end], re.I)
+        if stop:
+            end = m.end() + stop.start()
+        spans.append((m.start(), end))
+    return spans
+
+
+def usable_dates(text: str) -> set:
+    """可作为 DDL 的日期集合：原文里真实存在，且**至少有一次合法出现**。
+
+    作为防幻觉白名单用 —— 模型给的日期必须在这里面，否则判定为编造。
+    """
+    spans = _irrelevant_spans(text)
+    out = set()
+    for m in _DATE_SCAN_RE.finditer(text or ""):
+        iso = parse_date_text(m.group(0))
+        if not iso:
+            continue
+        if any(s <= m.start() < e for s, e in spans):
+            continue                       # 落在无关区块内的这一次出现，忽略
+        out.add(iso[:10])
+    return out
+
+
+def scan_handbook(path: str, ext: str = "pdf") -> dict:
+    """AI 扫描 HandBook，一次调用同时提取两类信息：
+
+    - components：考核构成（名称 + 权重%）
+    - ddls：重要时间节点（事项 + 截止时间，取自表格的 Due Date 列；
+      无时刻为 YYYY-MM-DD，有时刻为 YYYY-MM-DDTHH:MM）
+    - skipped：被判为不可用而丢弃的条目（补考区块 / 日期编造 / 无法解析），供排查
+
+    一次调用拿两份结果，避免为了扫 DDL 再花一次额度。
+    只做预填，用户可完全手工修改。
+    返回 {"components": [...], "ddls": [...], "skipped": [...]}
+    """
     if ext == "docx":
         text = "\n".join(parse_docx(path))
     else:
@@ -605,12 +735,27 @@ def scan_handbook(path: str, ext: str = "pdf") -> list[dict]:
         raise ValueError("HandBook 中没有可提取的文字")
 
     prompt = (
-        "下面是一份大学课程/项目手册（HandBook）的文本。请找到其中的 Assessment / "
-        "Marking Scheme 部分，提取所有考核组成部分（Assessment Component）。\n"
+        "下面是一份大学课程/项目手册（HandBook）的文本。请提取两类信息：\n"
+        "A. 考核构成：找到 Assessment / Marking Scheme 部分，提取每个组成部分的 "
+        "name（名称，保留英文原名）和 weight（占总分的百分比数字）。\n"
+        "B. 重要时间节点（DDL）：只从**考核表格**里取，不要从规章制度段落里取。"
+        "这类表格的表头通常是 Assessment Task / Weighting / Release Date / Due Date，"
+        "**只取 Due Date 列（截止日），绝对不要用 Release Date（发布日）**。\n"
+        "   · 每条提取 title（事项名称）与 due_raw（**原样照抄手册中的日期文字**，"
+        '例如 "13/Dec/2026 23:59"；**不要换算成 YYYY-MM-DD、不要补全、不要推算**）。\n'
+        "   · 每条还要标 section：位于主考核表格内填 \"main\"；位于 Resit Assessment"
+        "（补考）区块内填 \"resit\"；其他位置填 \"other\"。\n"
+        "   · 表格里日期写成 \"/\" 或留空的行表示没有日期，请直接跳过。\n"
+        "   · 重要规律：表格文本里每行日期的排列是「先 Release Date、后 Due Date」，"
+        "同一行出现两个日期时**后一个才是 Due Date**，取它；只出现一个日期时就用它。\n"
+        "   · 忽略 Cut-off Date（选课/退课截止日）。\n"
         "要求：\n"
-        "1. 每个组成部分提取：name（名称，保留英文原名）、weight（占总分的百分比数字）。\n"
-        "2. 忽略得分、等级说明等其他信息；找不到考核构成时返回空数组。\n"
-        '3. 只输出 JSON：{"components":[{"name":"Coursework 1","weight":30}]}\n\n'
+        "1. 忽略得分、等级说明等其他信息；某一类找不到就返回空数组。\n"
+        "2. weight 是 0-100 的数字（不带百分号）。\n"
+        "3. 各考核项的权重之和应当等于 100%。表格里若有 Total / Overall / 合计 / 总计 "
+        "这类**汇总行**，请忽略它，不要当成考核项。\n"
+        '4. 只输出 JSON：{"components":[{"name":"Coursework 1","weight":30}],'
+        '"ddls":[{"title":"Final Group Project","due_raw":"13/Dec/2026 23:59","section":"main"}]}\n\n'
         f"【手册文本】\n{text}"
     )
     import json as _json
@@ -623,6 +768,7 @@ def scan_handbook(path: str, ext: str = "pdf") -> list[dict]:
         response_format={"type": "json_object"},
     )
     data = _json.loads(resp.choices[0].message.content)
+
     out = []
     for comp in data.get("components", [])[:12]:
         try:
@@ -632,44 +778,152 @@ def scan_handbook(path: str, ext: str = "pdf") -> list[dict]:
         if w <= 0:
             continue
         out.append({"name": str(comp.get("name") or "Component"), "weight": w})
+
+    # 汇总行兜底：HandBook 的表格常有一行「Total / Overall 100%」，模型偶尔会给它
+    # 编个名字（实测出现过叫 "Exam" 的）混进考核项，表现是合计正好变成 200%，
+    # 且其中恰有一条正好 100%。出现这种情况就剔除那一条。
+    if len(out) > 1 and abs(sum(c["weight"] for c in out) - 200) < 0.5:
+        hundred = [c for c in out if abs(c["weight"] - 100) < 0.5]
+        if len(hundred) == 1:
+            out.remove(hundred[0])
+
+    # DDL：模型只负责「挑出哪条、原样引用日期文字」，换算与校验全部在代码里做。
+    # 三道门：① 补考区块剔除；② 日期用 parse_date_text 解析（模型不参与换算）；
+    #         ③ 解析结果必须出现在原文日期白名单里，否则判定为编造并丢弃。
+    known = usable_dates(text)
+    ddls, skipped = [], []
+    for d in data.get("ddls", [])[:30]:
+        title = str(d.get("title") or "").strip()
+        raw = str(d.get("due_raw") or d.get("due") or "").strip()
+        section = str(d.get("section") or "main").strip().lower()
+        if not title or not raw:
+            continue
+        if section == "resit":
+            skipped.append(f"{title}｜补考区块，已跳过")
+            continue
+        iso = parse_date_text(raw)
+        if not iso:
+            skipped.append(f"{title}｜日期无法解析：{raw}")
+            continue
+        if iso[:10] not in known:
+            skipped.append(f"{title}｜日期不在手册原文中：{raw}")
+            continue
+        ddls.append({"title": title, "due": iso, "due_raw": raw})
+
+    return {"components": out, "ddls": ddls, "skipped": skipped}
+
+
+# ---------- 知识点单元 ----------
+# chunk 是检索单位，不是知识单位：滑窗切块为保证召回而设置重叠，相邻块往往是
+# 同一段内容的延续。以 chunk 为出题单位会产出大量语义重复的碎片题，
+# 也无法回答「这门课覆盖了多少」——因为 chunk 数量会随切块参数变化。
+#
+# 本项目资料是 PPT 导出的 PDF，**一页就是一个知识主题**，页是天然且稳定的边界。
+# 于是按页聚合、超长页再按字数拆分。unit_key 只依赖「资料 + 页 + 段号」，
+# 资料内容不变它就永远不变，覆盖率台账才能跨次累积。
+
+MAX_UNIT_CHARS = 1500        # 单个知识点单元的字数上限（超长页按此拆分）
+BATCH_MAX_UNITS = 6          # 全面覆盖时每批最多处理几个知识点
+BATCH_CHAR_BUDGET = 7000     # 每批原文总量上限，控制单次请求的输入规模
+
+
+def _unit_keys(material_id: str, page: int, chars: int) -> list:
+    """一页拆成几个知识点单元、各自 key 是什么。
+
+    这是 unit_key 的**唯一定义处** —— chrome 别处不要另写一份，
+    覆盖率分子分母对不上就会显示成「练过却说没覆盖」。
+    """
+    if chars <= 0:
+        return []                                   # 空页不成单元
+    n = max(1, -(-chars // MAX_UNIT_CHARS))         # 向上取整
+    if n == 1:
+        return [f"{material_id}#p{page}"]
+    return [f"{material_id}#p{page}#{k}" for k in range(n)]
+
+
+def unit_keys_for(material_ids: list) -> list:
+    """范围内全部知识点单元的 key。不读正文，覆盖率统计走这条轻量路径。"""
+    keys = []
+    for material_id, page, chars in store.chunk_sizes_for_materials(material_ids):
+        keys.extend(_unit_keys(material_id, page, chars))
+    return keys
+
+
+def build_knowledge_units(material_ids: list) -> list:
+    """把 chunk 按页聚合成知识点单元（出题的基本单位）。"""
+    rows = store.chunks_for_materials(material_ids)
+    if not rows:
+        return []
+    by_page, order = {}, []
+    for r in rows:
+        k = (r["material_id"], int(r["page"]))
+        if k not in by_page:
+            by_page[k] = []
+            order.append(k)
+        by_page[k].append(r)
+
+    units = []
+    for mid, page in order:
+        chunks = sorted(by_page[(mid, page)], key=lambda x: int(x.get("ord") or 0))
+        total = sum(len(c.get("text") or "") for c in chunks)
+        keys = _unit_keys(mid, page, total)
+        if not keys:
+            continue
+        text = "\n".join(c.get("text") or "" for c in chunks).strip()
+        if not text:
+            continue
+        if len(keys) == 1:
+            segs = [text]
+        else:
+            size = -(-total // len(keys))
+            # 按 keys 的数量切，**不过滤空段** —— 段数必须与 unit_keys_for 完全一致
+            segs = [text[i * size:(i + 1) * size] for i in range(len(keys))]
+        head = chunks[0]
+        for key, seg in zip(keys, segs):
+            units.append({
+                "unit_key": key,
+                "material_id": mid,
+                "orig_name": head.get("orig_name") or "",
+                "ext": head.get("ext") or "pdf",
+                "page": page,
+                "text": seg,
+            })
+    return units
+
+
+def _pack_units(units: list, max_units: int, char_budget: int) -> list:
+    """按字数预算打包：短知识点多装、长的少装，避免一批里塞进整节内容。"""
+    out, batch, used = [], [], 0
+    for u in units:
+        if batch and (len(batch) >= max_units or used + len(u["text"]) > char_budget):
+            out.append(batch)
+            batch, used = [], 0
+        batch.append(u)
+        used += len(u["text"])
+    if batch:
+        out.append(batch)
     return out
 
 
-def generate_quiz(material_ids: list[str], num: int = 5, kind: str = "mixed") -> dict:
-    """基于所选资料范围出题。返回 {questions: [{question, options, answer, explanation, refs}]}"""
-    rows = store.chunks_for_materials(material_ids)
-    if not rows:
-        raise ValueError("所选范围内没有已解析成功的资料内容")
-    # 每份资料均匀采样，总字数控制在 ~16000
-    from collections import defaultdict
-    by_mat = defaultdict(list)
-    for r in rows:
-        by_mat[r["material_id"]].append(r)
-    total_chars = sum(len(r["text"]) for r in rows)
-    keep_ratio = min(1.0, 16000 / max(total_chars, 1))
-    picked, used = [], 0
-    for mid, chunks in by_mat.items():
-        step = max(1, int(1 / keep_ratio))
-        for ch in chunks[::step][:10]:
-            if used + len(ch["text"]) > 16000:
-                break
-            picked.append(ch)
-            used += len(ch["text"])
-    if not picked:
-        picked = rows[:8]
+def _quiz_from_units(units: list, kind: str = "choice", temperature: float = 0.7) -> list:
+    """给一批知识点单元，一次调用生成题目。
 
-    parts = []
-    for i, ch in enumerate(picked, 1):
-        parts.append(f"[{i}] {ch['orig_name']} · 第{ch['page']}页\n{ch['text']}")
+    单元直接作为 context 条目 —— refs 的编号就是单元编号，每道题据此回填
+    unit_key，覆盖率才有依据。
+    """
+    if not units:
+        return []
+    parts = [f"[{i}] {u['orig_name']} · 第{u['page']}页\n{u['text']}"
+             for i, u in enumerate(units, 1)]
     context = "\n\n".join(parts)
-
     prompt = (
-        f"请严格基于下面的课程资料片段，出 {num} 道题（题型：{QUIZ_KIND_LABEL.get(kind, '混合题型')}），"
-        "用于帮助我复习。要求：\n"
+        f"请严格基于下面的课程资料片段，**为每一个编号的片段各出 1 道题**"
+        f"（共 {len(units)} 个片段，就出 {len(units)} 道题；"
+        f"题型：{QUIZ_KIND_LABEL.get(kind, '选择题')}），用于帮助我复习。要求：\n"
         "1. 只能使用资料中出现过的知识点，禁止引入资料外的内容。\n"
-        "2. 选择题给 4 个选项（A/B/C/D），简答题 options 为空数组。\n"
-        "3. answer 填正确选项字母或简答参考答案；explanation 简要说明，并注明出自哪几个资料编号。\n"
-        "4. refs 填引用的资料片段编号数组，如 [2,5]。\n"
+        "2. 选择题给 4 个选项（A/B/C/D）；简答题 options 为空数组。\n"
+        "3. answer 填正确选项字母（如 A）或简答参考答案；explanation 简要说明。\n"
+        "4. **每道题都必须填 refs**，写它依据的片段编号，如 [2]（必填）。\n"
         '5. 只输出 JSON，格式：{"questions":[{"question":"...","options":["A...","B...","C...","D..."],'
         '"answer":"A","explanation":"...","refs":[1]}]}\n\n'
         f"【资料片段】\n{context}"
@@ -679,27 +933,148 @@ def generate_quiz(material_ids: list[str], num: int = 5, kind: str = "mixed") ->
     resp = client.chat.completions.create(
         model=cfg["model"],
         messages=[{"role": "user", "content": prompt}],
-        temperature=0.4,
+        temperature=temperature,
         response_format={"type": "json_object"},
     )
     import json as _json
     data = _json.loads(resp.choices[0].message.content)
-    ref_meta = [{"material_id": ch["material_id"], "orig_name": ch["orig_name"], "page": ch["page"],
-                 "ext": (ch.get("ext") or "pdf")} for ch in picked]
+    qs = data.get("questions", [])
     out = []
-    for q in data.get("questions", [])[:num]:
+    for idx, q in enumerate(qs[:len(units)]):
         refs = []
-        for n in q.get("refs", []):
-            if isinstance(n, int) and 1 <= n <= len(ref_meta):
-                refs.append({"n": n, **ref_meta[n - 1]})
+        for n in (q.get("refs") or []):
+            if isinstance(n, int) and 1 <= n <= len(units):
+                u = units[n - 1]
+                refs.append({"n": n, "material_id": u["material_id"],
+                             "orig_name": u["orig_name"], "page": u["page"],
+                             "ext": u.get("ext") or "pdf"})
+        # 归属知识点：取它引用的第一个片段；模型漏填 refs 时退回「按出题顺序对齐」
+        if refs:
+            owner = units[refs[0]["n"] - 1]
+        elif len(qs) == len(units):
+            owner = units[idx]
+        else:
+            owner = None
         out.append({
             "question": q.get("question", ""),
             "options": q.get("options") or [],
             "answer": q.get("answer", ""),
             "explanation": q.get("explanation", ""),
             "refs": refs,
+            "unit_key": owner["unit_key"] if owner else "",
+            "material_id": owner["material_id"] if owner else "",
+            "page": owner["page"] if owner else 0,
         })
-    return {"questions": out}
+    return out
+
+
+def generate_quiz(course_id: str, material_ids: list, num: int = 5, kind: str = "choice") -> dict:
+    """练习模式出题：按知识点单元抽样，**优先抽还没出过题的**。
+
+    这样日常练习本身就在推进覆盖率，而不是反复考同一批内容。
+    返回 {questions, units_total, units_fresh}。
+    """
+    units = build_knowledge_units(material_ids)
+    if not units:
+        raise ValueError("所选范围内没有已解析成功的资料内容")
+    import random
+    covered = store.covered_unit_keys(course_id)
+    fresh = [u for u in units if u["unit_key"] not in covered]
+    picked = random.sample(fresh, min(num, len(fresh))) if fresh else []
+    if len(picked) < num:                       # 新的不够，从已覆盖里补齐题量
+        rest = [u for u in units if u["unit_key"] in covered]
+        picked += random.sample(rest, min(num - len(picked), len(rest)))
+    if not picked:
+        picked = random.sample(units, min(num, len(units)))
+    random.shuffle(picked)
+    return {
+        "questions": _quiz_from_units(picked, kind),
+        "units_total": len(units),
+        "units_fresh": len(fresh),
+    }
+
+
+def generate_quiz_full(course_id: str, material_ids: list, kind: str = "choice",
+                       on_progress=None, max_batches: int = 40) -> dict:
+    """全面覆盖出题：遍历范围内**所有未出过题**的知识点，分批生成。
+
+    分批是这里的关键——一次调用处理一批知识点，调用次数从「单元数」压到
+    「单元数 ÷ 每批个数」；否则一门课几百个知识点就是几百次请求。
+    """
+    units = build_knowledge_units(material_ids)
+    if not units:
+        raise ValueError("所选范围内没有已解析成功的资料内容")
+    covered = store.covered_unit_keys(course_id)
+    todo = [u for u in units if u["unit_key"] not in covered]
+    batches = _pack_units(todo, BATCH_MAX_UNITS, BATCH_CHAR_BUDGET)
+    run = batches[:max_batches]
+    added = 0
+    for i, batch in enumerate(run, 1):
+        qs = _quiz_from_units(batch, kind)
+        store.save_quiz_questions(course_id, qs)
+        added += len(qs)
+        if on_progress:
+            on_progress(i, len(run), added)
+    return {
+        "total_units": len(units),
+        "pending_units": len(todo),
+        "batches": len(run),
+        "truncated": len(batches) > len(run),
+        "added": added,
+    }
+
+
+def coverage_report(course_id: str, material_ids: list = None,
+                    batch_limit: int = 40, sec_per_batch: float = 12.0) -> dict:
+    """覆盖率报告：总体进度 + 按资料明细 + 剩余工作量预估。
+
+    material_ids 为空时按该课程全部「已解析成功」的资料统计。
+
+    为什么要给工作量预估：一轮全面覆盖的规模可能差两个数量级 —— 几份课件
+    约 200 个知识点（十几批就完事），而范围里混进一本千页教材就是几千个
+    知识点、几百批、几小时。**在启动前把代价摊给用户看**，比让他点下去干等强。
+    """
+    if not material_ids:
+        material_ids = [m["id"] for m in store.list_materials(course_id)
+                        if m["status"] == "ready"]
+    if not material_ids:
+        return {"total": 0, "covered": 0, "pending": 0, "percent": 0.0,
+                "batches": 0, "this_run_batches": 0, "eta_seconds": 0,
+                "truncated": False, "by_material": []}
+
+    per_mat_total: dict[str, int] = {}
+    total = 0
+    for mid, page, chars in store.chunk_sizes_for_materials(material_ids):
+        n = len(_unit_keys(mid, page, chars))
+        if not n:
+            continue
+        per_mat_total[mid] = per_mat_total.get(mid, 0) + n
+        total += n
+
+    covered_map = store.coverage_by_material(course_id)
+    covered = sum(min(per_mat_total.get(mid, 0), n)
+                  for mid, n in covered_map.items() if mid in per_mat_total)
+    pending = max(0, total - covered)
+    batches = -(-pending // BATCH_MAX_UNITS) if pending else 0     # 向上取整（下界估算）
+    this_run = min(batches, batch_limit)
+
+    names = {m["id"]: m["orig_name"] for m in store.list_materials(course_id)}
+    by_material = [
+        {"material_id": mid, "orig_name": names.get(mid, ""),
+         "total": n, "covered": min(n, covered_map.get(mid, 0))}
+        for mid, n in sorted(per_mat_total.items(), key=lambda x: -x[1])
+    ]
+    return {
+        "total": total,
+        "covered": covered,
+        "pending": pending,
+        "percent": round(covered * 100 / total, 1) if total else 0.0,
+        "batches": batches,
+        "this_run_batches": this_run,
+        "eta_seconds": int(this_run * sec_per_batch),
+        "truncated": batches > this_run,
+        "by_material": by_material,
+    }
 
 
 def _guide_context(course_id: str, per_material: int = 6, max_chars: int = 12000) -> list[dict]:

@@ -85,7 +85,7 @@ const materialState = {
   list: [], tag: "", search: "",
   busy: false, editMode: false, selected: new Set(),
 };
-const quizState = { scopeTag: "", selected: new Set() };
+const quizState = { scopeTag: "", selected: new Set(), session: null };
 const libraryState = {
   selected: new Set(), tag: "", search: "", editMode: false,
 };
@@ -143,6 +143,78 @@ function esc(s) {
 }
 function openModal(id) { $(id).classList.remove("hidden"); }
 function closeModal(id) { $(id).classList.add("hidden"); }
+
+// ---------- 待办行（首页区块与待办管理页共用）----------
+// 两处的行结构本来各写一份，加了「课程标签 / 剩余时间分档」之后就成了双份维护点，
+// 收敛到这里：谁渲染谁负责调 todoRowHtml()，行内事件仍由调用方自己绑。
+const TODO_SORT_KEY = "sls-todo-sort";
+
+function todoSortMode() { return storage.get(TODO_SORT_KEY) || "due"; }
+function todoSetSortMode(m) { storage.set(TODO_SORT_KEY, m); }
+
+// 未完成项按 DDL 升序（无 DDL 的沉底，彼此保持原有相对顺序）
+function todoSortByDue(list) {
+  const withDue = list.filter(t => t.due)
+    .sort((a, b) => new Date(a.due) - new Date(b.due));
+  return [...withDue, ...list.filter(t => !t.due)];
+}
+
+// 按当前模式排出一屏的展示顺序：未完成在前、已完成沉底
+function todoOrder(todos) {
+  const open = todos.filter(t => !t.done);
+  const done = todos.filter(t => t.done);
+  const head = todoSortMode() === "due" ? todoSortByDue(open) : open;
+  return [...head, ...done];
+}
+
+// DDL 展示分四档：已过期 / 3 天内 / 7 天内 / 普通 —— 让最紧的自己跳出来
+function todoDueHtml(td, now) {
+  if (!td.due) return `<span class="todo-nodue">无 DDL</span>`;
+  const d = new Date(td.due);
+  const when = d.toLocaleString("zh-CN", { month: "2-digit", day: "2-digit", hour: "2-digit", minute: "2-digit" });
+  if (td.done) return `<span class="todo-due">DDL ${when}</span>`;
+  const hours = (d.getTime() - now) / 3600000;
+  if (hours < 0) return `<span class="todo-due overdue">DDL ${when} · 已过期</span>`;
+  const left = hours < 24 ? `还剩 ${Math.max(1, Math.round(hours))} 小时`
+                          : `还剩 ${Math.round(hours / 24)} 天`;
+  const level = hours <= 72 ? " urgent" : (hours <= 168 ? " soon" : "");
+  return `<span class="todo-due${level}">DDL ${when} · ${left}</span>`;
+}
+
+function todoCourseHtml(td) {
+  if (!td.course_code) return `<span class="todo-nocourse">未归类</span>`;
+  const name = td.course_name ? ` title="${esc(td.course_name)}"` : "";
+  return `<span class="todo-course"${name}>${esc(td.course_code)}</span>`;
+}
+
+const TODO_HANDLE_SVG = `<svg width="10" height="16" viewBox="0 0 10 16">
+  <circle cx="2.5" cy="3" r="1.4" fill="currentColor"/><circle cx="7.5" cy="3" r="1.4" fill="currentColor"/>
+  <circle cx="2.5" cy="8" r="1.4" fill="currentColor"/><circle cx="7.5" cy="8" r="1.4" fill="currentColor"/>
+  <circle cx="2.5" cy="13" r="1.4" fill="currentColor"/><circle cx="7.5" cy="13" r="1.4" fill="currentColor"/>
+</svg>`;
+
+function todoRowHtml(td, now, withHandle) {
+  const handle = withHandle
+    ? `<span class="drag-handle" title="拖动排序" aria-hidden="true">${TODO_HANDLE_SVG}</span>` : "";
+  return `${handle}
+    <input type="checkbox" class="todo-check" ${td.done ? "checked" : ""}>
+    ${todoCourseHtml(td)}
+    <span class="todo-content" title="${esc(td.content)}">${esc(td.content)}</span>
+    ${todoDueHtml(td, now)}
+    <button class="btn btn-danger btn-sm todo-del">删除</button>`;
+}
+
+// 给「添加待办」的课程下拉填选项（选项来自已加载的课程列表，保留用户当前选择）
+function fillTodoCourseSelect(sel) {
+  if (!sel) return;
+  const cur = sel.value;
+  sel.innerHTML = [`<option value="">不指定课程</option>`]
+    .concat((courseState.list || []).filter(c => c.code !== "UNFILED")
+      .map(c => `<option value="${esc(c.id)}">${esc(c.code)}${c.name ? " · " + esc(c.name) : ""}</option>`))
+    .join("");
+  sel.value = cur;
+}
+
 document.querySelectorAll("[data-close]").forEach(b =>
   b.addEventListener("click", e => e.target.closest(".modal").classList.add("hidden")));
 
