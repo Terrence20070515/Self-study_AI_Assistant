@@ -375,6 +375,55 @@ def _expand_query(question: str) -> str:
     return question + "\n" + " ".join(ens)
 
 
+_CN_NUM = {"一": 1, "二": 2, "三": 3, "四": 4, "五": 5,
+           "六": 6, "七": 7, "八": 8, "九": 9, "十": 10}
+
+
+def _material_hint(question: str, course_id: str) -> set:
+    """认出问题里点名的资料（「讲 L01 的重点」「lab2 讲什么」）。
+
+    为什么单独做这一步：`L01` 只是**文件名前缀**，正文里根本不存在这个字符串。
+    语义检索会把它当噪声，命中一堆无关内容后判定「资料里没有」—— 而这是学生
+    最自然的提问方式，实测这类问题全部被拒答。
+
+    策略：从问题里抽出资料编号（L01 / Lab2 / Lesson 3 / 第三讲），再到文件名里
+    找对应。命中资料 ≤2 份才限定范围（1 份是点名，2 份多半是 pdf+docx 同源）；
+    超过 2 份视为泛指，退回普通检索，避免把范围搞错。
+    """
+    if not question:
+        return set()
+
+    # 「L01」和「Lab01」必须分开收：正则里 l|lab 会互相回溯，
+    # 混在一起的结果是问 L01 也把 Lab01 那份资料匹配进来（实测踩到）。
+    lecture_nums, lab_nums = set(), set()
+    for m in re.finditer(r"(?<![a-z])lab\s*0*(\d{1,2})(?![0-9])", question, re.I):
+        lab_nums.add(int(m.group(1)))
+    for m in re.finditer(r"(?<![a-z])l\s*0*(\d{1,2})(?![0-9])", question, re.I):
+        lecture_nums.add(int(m.group(1)))
+    for m in re.finditer(r"\b(?:lesson|lecture)\s*0*(\d{1,2})(?![0-9])", question, re.I):
+        lecture_nums.add(int(m.group(1)))
+    # 中文序数：第一讲 / 第 3 节 / 第二课 → 归到 lecture 组。
+    # 不处理「章」——那多半指教材章节，chunk 没有章节元数据，硬匹配会指错。
+    for m in re.finditer(r"第\s*([一二三四五六七八九十]|\d{1,2})\s*(?:讲|节|课)", question):
+        v = m.group(1)
+        lecture_nums.add(int(v) if v.isdigit() else _CN_NUM.get(v, 0))
+    lecture_nums.discard(0)
+    lab_nums.discard(0)
+    if not lecture_nums and not lab_nums:
+        return set()
+
+    hits = set()
+    for m in store.list_materials(course_id):
+        name = (m.get("orig_name") or "").lower()
+        if any(re.search(rf"(?<![a-z])(?:l|lesson|lecture)\s*0*{n}(?![0-9])", name)
+               for n in lecture_nums):
+            hits.add(m["id"])
+            continue
+        if any(re.search(rf"(?<![a-z])lab\s*0*{n}(?![0-9])", name) for n in lab_nums):
+            hits.add(m["id"])
+    return hits if len(hits) <= 2 else set()
+
+
 def _keyword_score(tokens: set[str], text: str) -> float:
     """词面重合度 0~1。向量检索对精确术语（FOREIGN KEY、3NF）不够敏感，由这块补。"""
     if not tokens:
@@ -396,6 +445,17 @@ def retrieve(course_id: str, question: str, cross_course: bool = False) -> list[
     rows = store.all_chunks_with_vectors("" if cross_course else course_id)
     if not rows:
         return []
+
+    # 用户在问题里点名了某份资料（「讲 L01 的重点」）→ 直接把检索范围收到那份资料。
+    # 「L01」在正文里不存在，不收范围的话语义检索命中不了它，只能拒答。
+    # 该资料分块太少（<5）时不收，免得检索不到任何东西。
+    if not cross_course:
+        hint = _material_hint(question, course_id)
+        if hint:
+            scoped = [r for r in rows if r["material_id"] in hint]
+            if len(scoped) >= 5:
+                rows = scoped
+
     mat = np.array(
         [np.frombuffer(r["embedding"], dtype=np.float32) for r in rows]
     )
