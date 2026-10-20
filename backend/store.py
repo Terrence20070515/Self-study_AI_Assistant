@@ -800,8 +800,12 @@ def material_sample_texts(material_id: str) -> list[str]:
 
 
 def all_chunks_with_vectors(course_id: str = ""):
-    """取分块与向量。course_id 为空串时跨全部课程（含未分类）——外部资料模式用。"""
-    sql = """SELECT ch.id, ch.material_id, ch.page, ch.text, ch.embedding,
+    """取分块与向量。course_id 为空串时跨全部课程（含未分类）——外部资料模式用。
+
+    ord 必须带出来：检索命中一个碎片后要按 ord 把前后相邻块取回来，
+    才能拼成完整段落（教材是 600 字滑窗切的，单块常从句子中间断开）。
+    """
+    sql = """SELECT ch.id, ch.material_id, ch.page, ch.ord, ch.text, ch.embedding,
                     m.orig_name, m.ext, co.code AS course_code
              FROM chunks ch
              JOIN materials m ON m.id = ch.material_id
@@ -813,6 +817,20 @@ def all_chunks_with_vectors(course_id: str = ""):
         args.append(course_id)
     with _conn() as c:
         return [dict(r) for r in c.execute(sql, args).fetchall()]
+
+
+def chunks_by_ord_range(material_id: str, lo: int, hi: int):
+    """取某资料内 ord 落在 [lo, hi] 的块，按 ord 升序。
+
+    用途：检索命中一个碎片，把它的前后邻块一起取回拼成完整段落。
+    """
+    with _conn() as c:
+        rows = c.execute(
+            "SELECT id, material_id, page, ord, text FROM chunks"
+            " WHERE material_id=? AND ord BETWEEN ? AND ? ORDER BY ord",
+            (material_id, int(lo), int(hi)),
+        ).fetchall()
+        return [dict(r) for r in rows]
 
 
 def chunks_for_materials(material_ids: list[str]):

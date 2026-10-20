@@ -291,16 +291,49 @@ def analyze_material(material_id: str, texts: list | None = None) -> dict | None
 
 # 常见 CS 术语中英对照：中文提问时补出英文写法，让词面信号也能命中英文资料
 _TERM_MAP = {
+    # —— 数据库 ——
     "外键": "foreign key", "主键": "primary key", "候选键": "candidate key",
     "范式": "normal form", "索引": "index", "事务": "transaction",
     "视图": "view", "触发器": "trigger", "存储过程": "stored procedure",
     "游标": "cursor", "元组": "tuple", "属性": "attribute", "关系": "relation",
-    "连接": "join", "查询": "query", "数据库": "database", "进程": "process",
-    "线程": "thread", "死锁": "deadlock", "并发": "concurrency", "缓存": "cache",
-    "内存": "memory", "指针": "pointer", "数组": "array", "链表": "linked list",
-    "栈": "stack", "队列": "queue", "哈希": "hash", "二叉树": "binary tree",
-    "递归": "recursion", "编译": "compile", "指令": "instruction",
-    "寄存器": "register", "流水线": "pipeline", "算法": "algorithm",
+    "连接": "join", "查询": "query", "数据库": "database",
+    # —— 通用 ——
+    "进程": "process", "线程": "thread", "死锁": "deadlock", "并发": "concurrency",
+    "缓存": "cache", "内存": "memory", "指针": "pointer", "数组": "array",
+    "链表": "linked list", "栈": "stack", "队列": "queue", "哈希": "hash",
+    "二叉树": "binary tree", "递归": "recursion", "编译": "compile",
+    "算法": "algorithm", "操作系统": "operating system",
+    # —— 计算机组成 / 体系结构（CSI 教材语言）——
+    "指令": "instruction", "指令集": "instruction set", "指令周期": "instruction cycle",
+    "操作码": "opcode", "操作数": "operand", "寻址方式": "addressing mode",
+    "寄存器": "register", "寄存器堆": "register file", "程序计数器": "program counter",
+    "数据通路": "datapath", "控制单元": "control unit", "算术逻辑单元": "arithmetic logic unit",
+    "微程序": "microprogram", "微指令": "microinstruction", "微架构": "microarchitecture",
+    "时钟周期": "clock cycle", "总线": "bus", "仲裁": "arbitration",
+    # 流水线（含 hazard 一族——实测缺这些词时中文提问完全匹配不上英文教材。
+    # 注意「冒险」映射到三个词：这本教材主要用 dependence，hazard 只是顺带一提，
+    # 只映射 hazard 会漏掉真正讲 RAW/WAR 依赖的那几页）
+    "流水线": "pipeline", "冒险": "hazard dependence stall", "冲突": "conflict hazard",
+    "依赖": "dependence", "停顿": "stall",
+    "前递": "forwarding", "旁路": "bypassing", "分支预测": "branch prediction",
+    "数据相关": "data dependence", "控制相关": "control dependence",
+    "超标量": "superscalar", "乱序执行": "out-of-order", "并行": "parallelism",
+    "多核": "multicore",
+    # 存储层次
+    "命中": "hit", "未命中": "miss", "缓存行": "cache line",
+    "写回": "write-back", "写直达": "write-through", "一致性": "coherence",
+    "虚拟内存": "virtual memory", "页表": "page table", "页错误": "page fault",
+    "快表": "translation lookaside buffer", "主存": "primary memory",
+    "只读存储器": "read only memory", "随机存取": "random access",
+    # 中断 / IO
+    "中断": "interrupt", "异常": "exception", "直接内存访问": "direct memory access",
+    "输入输出": "input output",
+    # 语言层
+    "汇编": "assembly", "汇编器": "assembler", "链接器": "linker", "装载器": "loader",
+    "编译器": "compiler", "解释器": "interpreter", "过程调用": "procedure call",
+    # 数值
+    "二进制": "binary", "补码": "two's complement", "浮点": "floating point",
+    "溢出": "overflow", "布尔": "boolean", "逻辑门": "logic gate",
 }
 
 VEC_WEIGHT = 0.72      # 向量分权重（语义相近）
@@ -311,19 +344,35 @@ KW_CANDIDATES = 200    # 先按向量粗筛这么多，再算关键词分（避�
 def _keyword_tokens(question: str) -> set[str]:
     """把问题切成用于词面匹配的 token。
 
-    英文取 3 字母以上的词；中文取 2-gram + 整段（术语常常整段出现）；
-    再补上中英术语对照里的英文写法。
+    只收有区分度的：英文 3 字母以上的词、短中文串（≤6 字，多半是术语）、
+    以及 _TERM_MAP 补出的英文写法。
+
+    **不再收中文 2-gram**：原来收了，一个中文问题能产出几十个「有哪 / 些冒」
+    这类噪声 token，分母被稀释，真正的术语命中（hazard / pipeline）只值 0.05 分，
+    关键词这一路几乎等于失效。
     """
     tokens = set(re.findall(r"[a-zA-Z]{3,}", question.lower()))
     for seg in re.findall(r"[\u4e00-\u9fff]+", question):
-        for i in range(len(seg) - 1):
-            tokens.add(seg[i:i + 2])
-        if len(seg) >= 2:
+        if 2 <= len(seg) <= 6:          # 长中文串是自然语言句子，不是术语
             tokens.add(seg)
     for zh, en in _TERM_MAP.items():
         if zh in question:
-            tokens.add(en)
+            tokens.update(en.split())   # 一个中文词可对应多个英文同义词
     return tokens
+
+
+def _expand_query(question: str) -> str:
+    """检索 query 扩展：把中文术语对应的英文一并送进 embedding。
+
+    实测：「流水线的 hazard 有哪些」这种中文提问，对英文教材的向量分只有
+    0.24–0.35，落在噪声区 —— 命中的是「三态缓冲器」「浮点溢出」这种完全无关的段落，
+    模型只能回答「资料里没找到」。补上 pipeline / hazard / stall 等英文术语后，
+    向量才能落到真正讲它们的那些页上。
+    """
+    ens = sorted({en for zh, en in _TERM_MAP.items() if zh in question})
+    if not ens:
+        return question
+    return question + "\n" + " ".join(ens)
 
 
 def _keyword_score(tokens: set[str], text: str) -> float:
@@ -343,7 +392,7 @@ def retrieve(course_id: str, question: str, cross_course: bool = False) -> list[
     cross_course=True 时跨全部课程检索（「允许外部资料」模式）。
     """
     cfg = load_config()
-    qvec = embed_texts([question])[0]
+    qvec = embed_texts([_expand_query(question)])[0]
     rows = store.all_chunks_with_vectors("" if cross_course else course_id)
     if not rows:
         return []
@@ -363,15 +412,24 @@ def retrieve(course_id: str, question: str, cross_course: bool = False) -> list[
     scored.sort(key=lambda x: -x[1])
 
     results = []
+    seen_pages = set()
     for idx, score, vs, kw in scored:
         if score < cfg["threshold"]:
             continue
         r = rows[idx]
+        # 同页只取最高分的一条。滑窗把一页切成多块、相邻块高度相似，
+        # 不去重的话 top-k 会全落在同一页（实测出现过 5 条里 2 条同页），
+        # 等于把检索名额浪费在重复内容上。
+        page_key = (r["material_id"], r["page"])
+        if page_key in seen_pages:
+            continue
+        seen_pages.add(page_key)
         results.append(
             {
                 "material_id": r["material_id"],
                 "orig_name": r["orig_name"],
                 "page": r["page"],
+                "ord": int(r.get("ord") or 0),
                 "ext": r.get("ext") or "pdf",
                 "course_code": r.get("course_code") or "",
                 "text": r["text"],
@@ -380,9 +438,88 @@ def retrieve(course_id: str, question: str, cross_course: bool = False) -> list[
                 "kw_score": round(kw, 3),
             }
         )
-        if len(results) >= cfg["top_k"]:
+        if len(results) >= cfg["top_k"] * 2:
             break
-    return results
+    # 多取一倍候选再扩展合并：合并相邻窗口后条目会变少，靠候选数补回来
+    return _expand_context(results, limit=cfg["top_k"])
+
+
+CONTEXT_NEIGHBORS = 1       # 命中块前后各带几块（1 → 约 3 块拼成完整一段）
+CONTEXT_MAX_CHARS = 16000   # 扩展后总字数上限，防止把整章塞进上下文
+
+
+def _stitch(texts: list) -> str:
+    """把滑窗切出来的相邻块拼回去，**去掉重叠**。
+
+    切块参数是 600 字 / 重叠 100 字，直接拼接会出现重复的 100 字。
+    这里逐块找「上一段结尾 == 这一段开头」的最长重叠并裁掉。
+    """
+    if not texts:
+        return ""
+    out = texts[0]
+    for t in texts[1:]:
+        max_k = min(len(out), len(t), int(CHUNK_OVERLAP * 1.5))
+        cut = 0
+        for k in range(max_k, 0, -1):
+            if out.endswith(t[:k]):
+                cut = k
+                break
+        out += t[cut:]
+    return out
+
+
+def _expand_context(results: list, limit: int = 5) -> list:
+    """把命中的「碎片」补成完整段落。
+
+    实测问题：教材按 600 字滑窗切块，单块常从句子中间开始
+    （如 "e of feed- ing instructions into the pip"）到句子中间结束。
+    AI 收到的是一堆半句话，自然答不出教材里的详细解释 —— 用户会以为是
+    「完全没检索到教材」，其实是「检索到了但读不懂」。
+
+    做法：每个命中点把同资料内 ord 前后各 CONTEXT_NEIGHBORS 块一起取回、
+    按 ord 拼成完整一段（裁掉滑窗重叠）。窗口**相邻或重叠**都合并 ——
+    实测 ord 521 与 524 两个命中分属两段但同在一页，不合并会让同一页
+    在结果里出现两次，既占名额又像重复。
+    """
+    if not results:
+        return results
+
+    # ① 合并同一资料内相邻 / 重叠的 ord 窗口
+    windows: list[dict] = []
+    for r in results:
+        mid, o = r["material_id"], int(r.get("ord") or 0)
+        lo, hi = max(0, o - CONTEXT_NEIGHBORS), o + CONTEXT_NEIGHBORS
+        merged = False
+        for w in windows:
+            if w["material_id"] == mid and lo <= w["hi"] + 1 and hi >= w["lo"] - 1:
+                w["lo"], w["hi"] = min(w["lo"], lo), max(w["hi"], hi)
+                merged = True
+                break
+        if not merged:
+            windows.append({"material_id": mid, "lo": lo, "hi": hi, "best": r})
+
+    # ② 按「窗口里最好的那条命中分」排序，取前 limit 个
+    windows.sort(key=lambda w: -w["best"]["score"])
+
+    # ③ 取回窗口内全部块并拼成一段
+    out, total = [], 0
+    for w in windows[:limit]:
+        chunks = store.chunks_by_ord_range(w["material_id"], w["lo"], w["hi"])
+        if not chunks:
+            continue
+        text = _stitch([c["text"] for c in chunks])
+        if not text:
+            continue
+        if total + len(text) > CONTEXT_MAX_CHARS and out:
+            break                      # 超预算就停，保留已拿到的
+        item = dict(w["best"])
+        item["text"] = text
+        item["page"] = chunks[0]["page"]
+        item["page_to"] = chunks[-1]["page"]
+        item["expanded"] = len(chunks)
+        out.append(item)
+        total += len(text)
+    return out or results
 
 
 # ---------- DeepSeek 生成 ----------
@@ -391,9 +528,14 @@ STRICT_SYSTEM = (
     "你是一位严谨的课程学习助手。规则：\n"
     "1. 只依据提供的【资料片段】回答问题，禁止使用资料之外的任何知识。\n"
     "2. 回答中引用资料时，必须在句子后面标注来源编号，格式如 [1]、[2]。\n"
-    "3. 如果资料片段不足以回答问题，只回复一句话：「资料库中未找到足够相关的内容，无法回答该问题。」"
-    "并可以简短说明资料里大概涉及什么主题。不要猜测，不要编造。\n"
-    "4. 用简体中文回答，条理清晰，适合学习复习场景。"
+    "3. **术语对应**：如果资料讲的是同一个概念，只是用的术语与提问不同"
+    "（例如提问用「流水线 hazard」，而资料用的是 dependence / stall；"
+    "或提问用中文译名，资料用英文原词），要按资料内容正常回答，"
+    "并在开头用一句话点明术语对应关系，**不要因为字面上没有那个词就判定「没找到」**。\n"
+    "4. 只有当资料确实**没有涉及这个主题**时，才回复一句话："
+    "「资料库中未找到足够相关的内容，无法回答该问题。」并简短说明资料里大概涉及什么主题。"
+    "不要猜测，不要编造。\n"
+    "5. 用简体中文回答，条理清晰，适合学习复习场景。"
 )
 
 # 「允许外部资料」模式：可以结合自有知识，但必须与资料内容明确区分，且不得伪造引用编号
