@@ -654,6 +654,9 @@ label.btn { display: inline-flex; align-items: center; }
 .ink-stage .text-layer .tl-item {
   position: absolute; white-space: pre; transform-origin: 0 0;
   -webkit-user-select: text; user-select: text;
+  /* 不裁的话字形会溢出盒子，命中区比 getBoundingClientRect 大 2~5px，
+     点在视觉空白处也会命中这一行（实测）。文字本身是透明的，裁掉不影响显示 */
+  overflow: hidden;
 }
 /* 原生选中高亮：文字层本身是透明的，所以只需让选区背景可见 */
 .ink-stage .text-layer ::selection { background: rgba(64,128,232,.35); }

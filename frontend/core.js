@@ -1452,6 +1452,37 @@ async function renderTextLayer(page, viewport) {
       s.style.transform = `scaleX(${(w / measured[i]).toFixed(4)})`;
     }
   });
+
+  // 行间空白归属：PDF 的行距常常远大于字高（标题到正文尤其明显），拖动时指针落在
+  // 空白处，浏览器会把选择起点吸附到**上一行**（实测点标题下方 8~40px 仍选中标题），
+  // 表现就是「只想选下面一行，却把上面一行也带上了」。
+  // 这里把每行的盒子**向上扩到与上一行间隙的中点**，空白区就变成「离谁近选谁」。
+  // 只处理明显间隙（>6px），普通行距不动，避免盒子互相重叠反而更糟。
+  const rows = new Map();
+  spans.forEach(s => {
+    const k = Math.round(parseFloat(s.style.top) || 0);
+    if (!rows.has(k)) rows.set(k, []);
+    rows.get(k).push(s);
+  });
+  const rowTops = [...rows.keys()].sort((a, b) => a - b);
+  for (let i = 1; i < rowTops.length; i++) {
+    const prev = rows.get(rowTops[i - 1])[0];
+    const cur = rows.get(rowTops[i])[0];
+    const prevTop = parseFloat(prev.style.top) || 0;
+    const prevH = parseFloat(prev.style.height) || 0;
+    const curTop = parseFloat(cur.style.top) || 0;
+    const curH = parseFloat(cur.style.height) || 0;
+    const gap = curTop - (prevTop + prevH);
+    if (gap > 6) {
+      // 一口气扩到中点（gap * 0.5 天然不会碰到上一行），
+      // 再用 2 倍字高兜住「页尾大段空白」——那种情况不该把盒子拉到几十像素高
+      const grow = Math.min(gap * 0.5, curH * 2);
+      rows.get(rowTops[i]).forEach(s => {
+        s.style.top = ((parseFloat(s.style.top) || 0) - grow) + "px";
+        s.style.height = ((parseFloat(s.style.height) || 0) + grow) + "px";
+      });
+    }
+  }
 }
 
 // ---------- PDF 目录（内嵌书签）----------
