@@ -4,7 +4,7 @@
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
 <title>Self-Learning Space</title>
-<link rel="stylesheet" href="main.css?v=20261013g">
+<link rel="stylesheet" href="main.css?v=20261021b">
 </head>
 <body>
 <div class="layout">
@@ -532,7 +532,13 @@
           <div class="imm-note-head">
             <span>本页注释</span>
             <span class="imm-note-btns">
+              <select id="imm-note-lang" class="input input-sm" title="注释语言（各语言分别生成、互不覆盖）">
+                <option value="zh">中文</option>
+                <option value="en">English</option>
+                <option value="es">Español</option>
+              </select>
               <button id="imm-note-gen" class="btn btn-outline btn-sm">生成注释</button>
+              <button id="imm-note-gen-all" class="btn btn-ghost btn-sm" title="为当前语言的整份课件补齐注释（会消耗较多 API 额度）">全部</button>
               <button id="imm-note-edit" class="btn btn-outline btn-sm hidden">编辑注释</button>
             </span>
           </div>
@@ -573,11 +579,11 @@
     }, 3000);
   });
 </script>
-<script src="core.js?v=20261013g"></script>
-  <script src="views-home.js?v=20261013g"></script>
-  <script src="views-course.js?v=20261013g"></script>
-  <script src="views-quiz.js?v=20261013g"></script>
-  <script src="views-tools.js?v=20261013g"></script>
-  <script src="main.js?v=20261013g"></script>
+<script src="core.js?v=20261021b"></script>
+  <script src="views-home.js?v=20261021b"></script>
+  <script src="views-course.js?v=20261021b"></script>
+  <script src="views-quiz.js?v=20261021b"></script>
+  <script src="views-tools.js?v=20261021b"></script>
+  <script src="main.js?v=20261021b"></script>
 </body>
 </html>

@@ -44,12 +44,26 @@ def _why(e: Exception) -> str:
     return f"{type(c).__name__}: {str(c)[:140]}" if c else "无"
 
 
-def _fetch_batch(course_name: str, batch: list):
+NOTE_LANGS = ("zh", "en", "es")
+
+
+def _norm_lang(lang: str) -> str:
+    """归一到支持的语言码；不认识的按中文处理（默认值永远是中文）。"""
+    lang = (lang or "zh").strip().lower()
+    return lang if lang in NOTE_LANGS else "zh"
+
+
+def _status_key(mid: str, lang: str) -> str:
+    """任务状态按「资料 + 语言」分开存 —— 中文和西语两轮生成不能互相顶掉。"""
+    return f"{mid}:{lang}"
+
+
+def _fetch_batch(course_name: str, batch: list, lang: str = "zh"):
     """调一次批量生成，网络类失败按指数退避重试。返回 (result, err)。"""
     last = None
     for i in range(RETRY_PER_BATCH):
         try:
-            return core.generate_page_notes_batch(course_name, batch), None
+            return core.generate_page_notes_batch(course_name, batch, lang=lang), None
         except Exception as e:  # noqa: BLE001
             last = e
             if not _is_retryable(e):
@@ -62,14 +76,16 @@ def _fetch_batch(course_name: str, batch: list):
     return {}, last
 
 
-def _note_job(mid: str, course_name: str):
+def _note_job(mid: str, course_name: str, lang: str = "zh"):
+    key = _status_key(mid, lang)
+
     def run():
-        st = NOTE_STATUS[mid]
+        st = NOTE_STATUS[key]
         try:
             path = material_file_path(mid, "pdf")
             pages = core.parse_pdf(path)
             st["total"] = len(pages)
-            have = {n["page"] for n in store.get_notes(mid)}
+            have = {n["page"] for n in store.get_notes(mid, lang)}
             st["done"] = len(have)
             todo = [(pno, text) for pno, text in pages if pno not in have]
             st["failed"] = len(todo)
@@ -78,63 +94,65 @@ def _note_job(mid: str, course_name: str):
                 if not todo:
                     break
                 if rnd:
-                    _log(f"[notes] {mid} 第 {rnd + 1} 轮补跑 {len(todo)} 页：{[p for p, _ in todo][:12]}")
+                    _log(f"[notes:{lang}] {mid} 第 {rnd + 1} 轮补跑 {len(todo)} 页：{[p for p, _ in todo][:12]}")
                     time.sleep(ROUND_DELAY)
                 pending = []
                 for k in range(0, len(todo), BATCH):
                     batch = todo[k:k + BATCH]
                     span = f"p{batch[0][0]}-{batch[-1][0]}"
-                    result, err = _fetch_batch(course_name, batch)
+                    result, err = _fetch_batch(course_name, batch, lang)
                     if err is not None:
                         st["last_error"] = f"批次 {span} 调用失败：{err}"
                         pending.extend(batch)
                         # 不能拿「累计失败数」当打印条件：第一批失败后它就已超过阈值，之后会全部静默
-                        _log(f"[notes] {mid} 批次 {span} 生成失败：{err}")
+                        _log(f"[notes:{lang}] {mid} 批次 {span} 生成失败：{err}")
                         continue
                     for pno, note in result.items():
-                        store.upsert_note(mid, pno, note, edited=0)
+                        store.upsert_note(mid, pno, note, edited=0, lang=lang)
                         st["done"] += 1
                     got = set(result)
                     miss = [(p, t) for p, t in batch if p not in got]
                     if miss:
                         pending.extend(miss)
                         st["last_error"] = f"批次 {span} 有 {len(miss)} 页未解析出内容"
-                        _log(f"[notes] {mid} 批次 {span} 少 {len(miss)} 页（输出被截断或格式不符）：{[p for p, _ in miss]}")
+                        _log(f"[notes:{lang}] {mid} 批次 {span} 少 {len(miss)} 页（输出被截断或格式不符）：{[p for p, _ in miss]}")
                 todo = pending
                 st["failed"] = len(todo)
 
             st["failed"] = len(todo)
             if todo:
-                _log(f"[notes] {mid} 结束：仍有 {len(todo)} 页未完成 {[p for p, _ in todo][:12]}")
+                _log(f"[notes:{lang}] {mid} 结束：仍有 {len(todo)} 页未完成 {[p for p, _ in todo][:12]}")
             else:
-                _log(f"[notes] {mid} 完成：{st['total']} 页全部有注释")
+                _log(f"[notes:{lang}] {mid} 完成：{st['total']} 页全部有注释")
             st["running"] = False
         except Exception as e:  # noqa: BLE001
             st["running"] = False
             st["error"] = str(e)[:200]
-            _log(f"[notes] {mid} 任务异常：{e}")
+            _log(f"[notes:{lang}] {mid} 任务异常：{e}")
 
     threading.Thread(target=run, daemon=True).start()
 
 
 @router.post("/api/materials/{mid}/notes/generate")
-def api_notes_generate(mid: str):
+def api_notes_generate(mid: str, lang: str = "zh"):
     mat = store.get_material(mid)
     if not mat or mat["deleted"]:
         raise HTTPException(404, "资料不存在")
     if (mat.get("ext") or "pdf") != "pdf":
         raise HTTPException(400, "沉浸模式只支持 PDF 课件")
-    st = NOTE_STATUS.get(mid)
+    lang = _norm_lang(lang)
+    key = _status_key(mid, lang)
+    st = NOTE_STATUS.get(key)
     if st and st.get("running"):
         return {"started": False, "status": st}
     course = store.get_course(mat["course_id"])
-    NOTE_STATUS[mid] = {"running": True, "total": 0, "done": 0, "failed": 0}
-    _note_job(mid, course["name"] or course["code"] if course else "")
-    return {"started": True}
+    NOTE_STATUS[key] = {"running": True, "total": 0, "done": 0, "failed": 0, "lang": lang}
+    _note_job(mid, course["name"] or course["code"] if course else "", lang)
+    return {"started": True, "lang": lang}
 
 
 @router.post("/api/materials/{mid}/notes/{page}/generate")
-def api_note_generate_one(mid: str, page: int):
+def api_note_generate_one(mid: str, page: int, lang: str = "zh"):
     """只生成**某一页**的注释（阅读界面里「生成本页注释」用）。
 
     和 `notes/generate` 的分工：列表页的「注释」按钮走全量补齐，
@@ -145,7 +163,8 @@ def api_note_generate_one(mid: str, page: int):
     _check_page(page)
     if (mat.get("ext") or "pdf") != "pdf":
         raise HTTPException(400, "仅 PDF 支持生成注释")
-    st = NOTE_STATUS.get(mid)
+    lang = _norm_lang(lang)
+    st = NOTE_STATUS.get(_status_key(mid, lang))
     if st and st.get("running"):
         raise HTTPException(409, "该资料正在批量生成注释，等它跑完再单独补页")
     pages = core.parse_pdf(material_file_path(mid, "pdf"))
@@ -153,22 +172,29 @@ def api_note_generate_one(mid: str, page: int):
     if not hit:
         raise HTTPException(400, "这一页没有可提取的文字（纯图片页）")
     course = store.get_course(mat["course_id"])
-    result, err = _fetch_batch(course["name"] or course["code"] if course else "", hit)
+    result, err = _fetch_batch(course["name"] or course["code"] if course else "", hit, lang)
     if err is not None:
         raise HTTPException(502, f"生成失败：{err}")
     note = result.get(page)
     if not note:
         raise HTTPException(502, "模型没有返回这一页的内容，可稍后重试")
-    store.upsert_note(mid, page, note, edited=0)
-    return {"ok": True, "page": page, "note": note}
+    store.upsert_note(mid, page, note, edited=0, lang=lang)
+    return {"ok": True, "page": page, "note": note, "lang": lang}
 
 
 @router.get("/api/materials/{mid}/notes")
-def api_notes_get(mid: str):
+def api_notes_get(mid: str, lang: str = "zh"):
+    """取注释。lang=zh（默认）/ en / es；返回里带 status，
+    前端据此知道「这个语言还没生成过」还是「正在生成」。"""
     mat = store.get_material(mid)
     if not mat or mat["deleted"]:
         raise HTTPException(404, "资料不存在")
-    return {"notes": store.get_notes(mid), "status": NOTE_STATUS.get(mid) or {"running": False}}
+    lang = _norm_lang(lang)
+    return {
+        "notes": store.get_notes(mid, lang),
+        "lang": lang,
+        "status": NOTE_STATUS.get(_status_key(mid, lang)) or {"running": False},
+    }
 
 
 @router.put("/api/materials/{mid}/notes/{page}")
@@ -179,7 +205,7 @@ def api_note_put(mid: str, page: int, body: dict):
     content = (body.get("content") or "").strip()
     if not content:
         raise HTTPException(400, "注释内容不能为空")
-    store.upsert_note(mid, page, content, edited=1)
+    store.upsert_note(mid, page, content, edited=1, lang=_norm_lang(body.get("lang", "zh")))
     return {"ok": True}
 
 

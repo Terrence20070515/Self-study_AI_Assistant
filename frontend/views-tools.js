@@ -378,14 +378,24 @@ $("#todo-form").addEventListener("submit", async (e) => {
 
 
 // ---------- 沉浸模式（上课专用） ----------
+// 注释支持多语言：各语言分别生成、分开存储，切换语言不会覆盖别的语言版本。
+const NOTE_LANG_KEY = "sls-note-lang";
+const NOTE_LANG_LABEL = { zh: "中文", en: "英文", es: "西班牙语" };
+function immLangPref() {
+  const v = storage.get(NOTE_LANG_KEY) || "zh";
+  return NOTE_LANG_LABEL[v] ? v : "zh";
+}
+
 const imm = { mid: null, courseId: null, doc: null, page: 1, total: 0,
               notes: {}, status: null, poll: null, editing: false,
-              scale: 1, fitWidth: true };
+              lang: "zh", scale: 1, fitWidth: true };
 
 async function openImmersive(m, startPage = 0) {   // startPage=0 表示接着上次读
   Object.assign(imm, { mid: m.id, courseId: m.course_id, doc: null, page: startPage,
                        total: 0, notes: {}, status: null, editing: false,
+                       lang: immLangPref(),
                        scale: 1, fitWidth: true });   // 每份资料默认「适应宽度」
+  $("#imm-note-lang").value = imm.lang;
   $("#imm-title").textContent = m.orig_name;
   $("#imm-progress").textContent = "";
   immApplyCols();                                    // 恢复上次的栏折叠状态
@@ -452,14 +462,37 @@ $("#imm-tab-mine").onclick = guard("看我的笔记", () => immShowPane("mine"))
 $("#imm-note-gen").onclick = guard("生成本页注释", async () => {
   if (!imm.mid || !imm.page) return;
   const page = imm.page;
-  toast(`正在生成第 ${page} 页注释…`);
+  const langLabel = NOTE_LANG_LABEL[imm.lang] || "中文";
+  toast(`正在生成第 ${page} 页的${langLabel}注释…`);
   try {
-    const r = await api(`/api/materials/${imm.mid}/notes/${page}/generate`, { method: "POST" });
+    const r = await api(`/api/materials/${imm.mid}/notes/${page}/generate?lang=${imm.lang}`, { method: "POST" });
     imm.notes[page] = r.note;
     renderImmNote();
-    toast(`第 ${page} 页注释已生成`);
+    toast(`第 ${page} 页${langLabel}注释已生成`);
   } catch (e) {
     toast("生成失败：" + (e.message || e));
+  }
+});
+
+// 整份补齐：给当前语言的整份课件生成注释（西语/英文没有注释时一次补齐，
+// 不必一页页点）。开销大，先确认。
+$("#imm-note-gen-all").onclick = guard("生成整份注释", async () => {
+  if (!imm.mid) return;
+  const langLabel = NOTE_LANG_LABEL[imm.lang] || "中文";
+  const have = Object.keys(imm.notes).length;
+  const total = imm.total || 0;
+  if (total && have >= total) return toast(`这一份的${langLabel}注释已经补全了`);
+  const rest = total ? total - have : "若干";
+  if (!confirm(`为这份课件补齐${langLabel}注释？\n\n还有约 ${rest} 页没有${langLabel}注释，`
+    + `会消耗较多 API 额度，耗时几分钟。已有其他语言的注释不受影响。`)) return;
+  try {
+    const r = await api(`/api/materials/${imm.mid}/notes/generate?lang=${imm.lang}`, { method: "POST" });
+    if (!r.started) return toast("已经在生成中，稍等");
+    toast(`${langLabel}注释开始生成，进度显示在顶部`);
+    await refreshImmNotes();
+    startImmPoll();
+  } catch (e) {
+    toast("启动失败：" + (e.message || e));
   }
 });
 
@@ -496,7 +529,7 @@ onGlobalKey(({ key, typing }) => {
 
 async function refreshImmNotes() {
   try {
-    const r = await api(`/api/materials/${imm.mid}/notes`);
+    const r = await api(`/api/materials/${imm.mid}/notes?lang=${imm.lang}`);
     imm.notes = {};
     for (const n of r.notes) imm.notes[n.page] = n;
     imm.status = r.status || { running: false };
@@ -505,6 +538,15 @@ async function refreshImmNotes() {
   renderImmNote();
   return imm.status;
 }
+
+// 切语言：只换显示哪一份，不会改动已生成的其他语言注释
+$("#imm-note-lang").onchange = async (e) => {
+  imm.lang = e.target.value;
+  storage.set(NOTE_LANG_KEY, imm.lang);
+  stopImmPoll();                       // 换语言后旧轮询的任务不再相关
+  await refreshImmNotes();
+  if (imm.status && imm.status.running) startImmPoll();
+};
 
 function updateImmProgress() {
   const st = imm.status || {};
@@ -527,14 +569,15 @@ function updateImmProgress() {
 function renderImmNote() {
   const n = imm.notes[imm.page];
   const el = $("#imm-note");
+  const langLabel = NOTE_LANG_LABEL[imm.lang] || "中文";
   if (n) {
     el.innerHTML = renderNote(n.content);
     $("#imm-note-edit").classList.remove("hidden");
   } else if (imm.status && imm.status.running) {
-    el.innerHTML = `<span class="muted">本页注释生成中…（生成完自动显示）</span>`;
+    el.innerHTML = `<span class="muted">本页${langLabel}注释生成中…（生成完自动显示）</span>`;
     $("#imm-note-edit").classList.add("hidden");
   } else {
-    el.innerHTML = `<span class="muted">本页暂无注释</span>`;
+    el.innerHTML = `<span class="muted">本页暂无${langLabel}注释（点上方「生成注释」）</span>`;
     $("#imm-note-edit").classList.add("hidden");
   }
   $("#imm-note-edit-wrap").classList.add("hidden");
@@ -635,7 +678,7 @@ $("#imm-note-save").onclick = async () => {
   if (!content) return toast("注释内容不能为空");
   await api(`/api/materials/${imm.mid}/notes/${imm.page}`, {
     method: "PUT", headers: { "Content-Type": "application/json" },
-    body: JSON.stringify({ content }),
+    body: JSON.stringify({ content, lang: imm.lang }),   // 只改当前语言这一份
   });
   toast("注释已保存（你的版本不会再被覆盖）");
   await refreshImmNotes();

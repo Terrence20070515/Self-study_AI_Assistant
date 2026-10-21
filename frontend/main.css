@@ -457,8 +457,11 @@ label.btn { display: inline-flex; align-items: center; }
 /* 折叠态：宽度归零并隐藏内容，PDF 区自动占满 */
 .imm-toc.collapsed { width: 0; padding: 0; border-right: none; overflow: hidden; }
 .imm-right.collapsed { width: 0; padding: 0; border-left: none; overflow: hidden; }
-.imm-note-head { display: flex; justify-content: space-between; align-items: center; font-weight: 600; }
-.imm-note-btns { display: flex; gap: 6px; }
+.imm-note-head { display: flex; justify-content: space-between; align-items: center; font-weight: 600; gap: 8px; flex-wrap: wrap; }
+/* 注释栏很窄：下拉定宽 + 按钮不折行，否则「生成注释」会被挤成「生成注/释」 */
+.imm-note-btns { display: flex; gap: 6px; align-items: center; flex-wrap: wrap; }
+.imm-note-btns select { width: 92px; flex: 0 0 auto; }
+.imm-note-btns .btn { white-space: nowrap; flex: 0 0 auto; }
 .imm-note {
   flex: 1; min-height: 0; overflow: auto;   /* 撑满面板剩余高度，下面不留空 */
   background: var(--surface); border: 1px solid var(--border); border-radius: 8px;

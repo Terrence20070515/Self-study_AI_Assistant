@@ -102,15 +102,16 @@ def init_db():
             CREATE INDEX IF NOT EXISTS idx_assessments_course ON assessments(course_id);
             """
         )
-        # 沉浸模式逐页注释
+        # 沉浸模式逐页注释（一页可有多个语言版本，主键带上 lang）
         c.execute(
             """CREATE TABLE IF NOT EXISTS page_notes(
                 material_id TEXT NOT NULL,
                 page INTEGER NOT NULL,
+                lang TEXT NOT NULL DEFAULT 'zh',
                 content TEXT NOT NULL,
                 edited INTEGER NOT NULL DEFAULT 0,
                 updated_at REAL NOT NULL,
-                PRIMARY KEY(material_id, page)
+                PRIMARY KEY(material_id, page, lang)
             )"""
         )
         # 待办事项（DDL + 具体事项；ord 为手动排序位；course_id 关联来源课程）
@@ -222,6 +223,28 @@ def _migrate():
         # 从未排过序（全为 0）时按 id 初始化一次
         if c.execute("SELECT COUNT(*) AS n FROM todos WHERE ord != 0").fetchone()["n"] == 0:
             c.execute("UPDATE todos SET ord = id")
+
+        # page_notes 老库没有 lang 列 → 重建表（SQLite 改不了主键）。
+        # 已有注释全部认定为中文 —— 这几百上千条是用户看着读过的，一条都不能丢。
+        pncols = {r["name"] for r in c.execute("PRAGMA table_info(page_notes)").fetchall()}
+        if pncols and "lang" not in pncols:
+            c.execute(
+                """CREATE TABLE page_notes_v2(
+                    material_id TEXT NOT NULL,
+                    page INTEGER NOT NULL,
+                    lang TEXT NOT NULL DEFAULT 'zh',
+                    content TEXT NOT NULL,
+                    edited INTEGER NOT NULL DEFAULT 0,
+                    updated_at REAL NOT NULL,
+                    PRIMARY KEY(material_id, page, lang)
+                )"""
+            )
+            c.execute(
+                "INSERT INTO page_notes_v2(material_id, page, lang, content, edited, updated_at)"
+                " SELECT material_id, page, 'zh', content, edited, updated_at FROM page_notes"
+            )
+            c.execute("DROP TABLE page_notes")
+            c.execute("ALTER TABLE page_notes_v2 RENAME TO page_notes")
 
 
 # 合法列名：小写字母或下划线开头，只含小写字母 / 数字 / 下划线
@@ -347,7 +370,7 @@ def get_material(mid: str):
 
 
 def list_materials(course_id: str, query: str = "", deleted: int = 0):
-    sql = """SELECT m.*, (SELECT COUNT(*) FROM page_notes pn WHERE pn.material_id=m.id) AS notes_count
+    sql = """SELECT m.*, (SELECT COUNT(DISTINCT pn.page) FROM page_notes pn WHERE pn.material_id=m.id) AS notes_count
              FROM materials m WHERE m.course_id=? AND deleted=?"""
     args = [course_id, deleted]
     if query:
@@ -518,30 +541,33 @@ def marked_pages(material_id: str) -> dict:
 
 # ---------- 沉浸模式逐页注释 ----------
 
-def get_notes(material_id: str):
+def get_notes(material_id: str, lang: str = "zh"):
+    """取某份资料某语言的逐页注释（默认中文）。"""
     with _conn() as c:
         rows = c.execute(
-            "SELECT page, content, edited FROM page_notes WHERE material_id=? ORDER BY page",
-            (material_id,),
+            "SELECT page, content, edited FROM page_notes"
+            " WHERE material_id=? AND lang=? ORDER BY page",
+            (material_id, lang),
         ).fetchall()
         return [dict(r) for r in rows]
 
 
-def upsert_note(material_id: str, page: int, content: str, edited: int = 0):
+def upsert_note(material_id: str, page: int, content: str,
+                edited: int = 0, lang: str = "zh"):
     with _conn() as c:
         c.execute(
-            """INSERT INTO page_notes(material_id, page, content, edited, updated_at)
-               VALUES(?,?,?,?,?)
-               ON CONFLICT(material_id, page) DO UPDATE SET
+            """INSERT INTO page_notes(material_id, page, lang, content, edited, updated_at)
+               VALUES(?,?,?,?,?,?)
+               ON CONFLICT(material_id, page, lang) DO UPDATE SET
                  content=excluded.content, edited=excluded.edited, updated_at=excluded.updated_at""",
-            (material_id, page, content, edited, now()),
+            (material_id, page, lang, content, edited, now()),
         )
 
 
 def materials_with_course(query: str = "", tag: str = "", deleted: int = 0):
     """跨课程查询资料（回收区 / 资料总库共用），SQL 收口在数据层。"""
     sql = """SELECT m.*, co.code AS course_code, co.name AS course_name,
-                    (SELECT COUNT(*) FROM page_notes pn WHERE pn.material_id=m.id) AS notes_count
+                    (SELECT COUNT(DISTINCT pn.page) FROM page_notes pn WHERE pn.material_id=m.id) AS notes_count
              FROM materials m LEFT JOIN courses co ON co.id = m.course_id
              WHERE m.deleted=?"""
     args = [deleted]
