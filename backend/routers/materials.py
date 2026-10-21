@@ -83,7 +83,7 @@ def api_export_materials(body: dict):
             path = material_file_path(m["id"], ext)
             if not os.path.exists(path):
                 continue
-            arc = m["orig_name"]
+            arc = store.fix_zip_name(m["orig_name"])   # 库里若存了 CP437 乱码名，导出时还原
             if arc in used_names:  # 重名去重：加序号前缀
                 arc = f"{len(used_names) + 1}_{arc}"
             used_names.add(arc)
@@ -310,7 +310,9 @@ async def api_batch_import(file: UploadFile = File(...)):
     skipped_count = 0
     with zf:
         for info in zf.infolist():
-            base = os.path.basename(info.filename)
+            # zip 里没有 UTF-8 标志位时，zipfile 按 CP437 解码文件名，
+            # macOS 的 NFD 名字会变成「Sesio╠ün」这种乱码 —— 必须在入库前还原
+            base = os.path.basename(store.fix_zip_name(info.filename))
             if info.is_dir() or not base or "__MACOSX" in info.filename:
                 continue
             ext = base.lower().rsplit(".", 1)[-1] if "." in base else ""

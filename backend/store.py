@@ -4,11 +4,38 @@ import os
 import re
 import sqlite3
 import time
+import unicodedata
 import uuid
 
 from .config import DATA_DIR
 
 DB_PATH = os.path.join(DATA_DIR, "study.db")
+
+
+def fix_zip_name(name: str) -> str:
+    """还原 zipfile 用 CP437 误解码出来的文件名。
+
+    zip 条目没有 UTF-8 标志位时，Python 的 zipfile 按 CP437 解码文件名。
+    macOS 的文件名是 NFD 形式（ó 存成 o + 组合音符），它的 UTF-8 字节 0xCC 0x81
+    在 CP437 下正好是「╠ü」—— 于是 "Sesión" 变成 "Sesio╠ün" 一路存进库里，
+    显示、搜索、导出拿到的都是乱码名。
+
+    做法：把 str 编回 CP437 拿到原始字节，再按 UTF-8 解一次。两种情况原样返回，
+    免得把本来正常的名字改坏：
+      - CP437 编不出来（含中文等 CP437 之外的字符）→ 说明本来就是好的
+      - 解出来不是合法 UTF-8 → 同上
+    """
+    if not name:
+        return name
+    try:
+        raw = name.encode("cp437")
+    except UnicodeEncodeError:
+        return name
+    try:
+        fixed = raw.decode("utf-8")
+    except UnicodeDecodeError:
+        return name
+    return unicodedata.normalize("NFC", fixed) if fixed != name else name
 
 
 def _conn():

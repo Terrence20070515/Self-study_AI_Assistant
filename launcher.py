@@ -105,7 +105,7 @@ class JsApi:
                 fp = material_file_path(m["id"], ext)
                 if not os.path.exists(fp):
                     continue
-                arc = m["orig_name"]
+                arc = store.fix_zip_name(m["orig_name"])   # 库里若存了乱码名，导出时还原
                 if arc in used:
                     arc = f"{len(used)+1}_{arc}"
                 used.add(arc)
