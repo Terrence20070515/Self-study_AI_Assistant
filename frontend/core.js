@@ -557,9 +557,12 @@ $("#btn-export").onclick = async () => {
     if (ok) return;
   }
   if (ids.length === 1) {
+    const m = materialState.list.find(x => x.id === ids[0]);
     const a = document.createElement("a");
     a.href = `/api/materials/${ids[0]}/download`;
-    a.download = "file";
+    // 必须给真实文件名。原来写死 "file"，浏览器就存成不带扩展名的 "file"，
+    // macOS 双击会用错程序打开（或显示乱码），看着就像「文件不完整」。
+    a.download = (m && m.orig_name) || "资料.pdf";
     a.click();
     return;
   }
@@ -570,10 +573,12 @@ $("#btn-export").onclick = async () => {
   if (!res.ok) return toast((await res.json()).detail || "导出失败");
   const blob = await res.blob();
   const a = document.createElement("a");
-  a.href = URL.createObjectURL(blob);
+  const url = URL.createObjectURL(blob);
+  a.href = url;
   a.download = "资料导出.zip";
   a.click();
-  URL.revokeObjectURL(a.href);
+  // 立刻 revoke 会让还没读完的下载中断（包越大越明显），留两秒再释放
+  setTimeout(() => URL.revokeObjectURL(url), 2000);
   toast(`已导出 ${ids.length} 份资料`);
 };
 

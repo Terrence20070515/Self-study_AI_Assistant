@@ -769,12 +769,22 @@ $("#btn-lib-export").onclick = async () => {
     const ok = ids.length === 1 ? await nativeExportOne(ids[0]) : await nativeExport(ids);
     if (ok) return;
   }
+  // 只选一份就直接下载原文件：比打包成 zip 快，文件名也能保留原样
+  if (ids.length === 1) {
+    const m = libraryState.list.find(x => x.id === ids[0]);
+    const a = document.createElement("a");
+    a.href = `/api/materials/${ids[0]}/download`;
+    a.download = (m && m.orig_name) || "资料.pdf";
+    a.click();
+    return;
+  }
   const res = await fetch("/api/materials/export", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ ids }) });
   if (!res.ok) return toast((await res.json()).detail || "导出失败");
   const blob = await res.blob();
   const a = document.createElement("a");
-  a.href = URL.createObjectURL(blob); a.download = "资料导出.zip"; a.click();
-  URL.revokeObjectURL(a.href);
+  const url = URL.createObjectURL(blob);
+  a.href = url; a.download = "资料导出.zip"; a.click();
+  setTimeout(() => URL.revokeObjectURL(url), 2000);   // 立即 revoke 会掐断还没读完的大文件
 };
 $("#btn-lib-del-selected").onclick = async () => {
   const ids = [...libraryState.selected];
