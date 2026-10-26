@@ -20,12 +20,31 @@ The core promise here: **answers must come from your materials, and each citatio
 
 | Module | Description |
 |---|---|
-| **Course & material management** | Organized by course code; PDF + docx; batch import; tags (lecture / exercise / past paper…); recycle bin with restore |
-| **RAG Q&A** | Hybrid retrieval (dense + lexical); answers carry `[n]` citations that jump to the PDF page; **refuses to answer** when the material is insufficient |
-| **Per-page AI notes** | Auto-generated key points for every page, manually editable |
+| **Course & material management** | Organized by course code; PDF + docx; batch import (incl. zip); tags (lecture / exercise / past paper…); recycle bin with restore; export a single file or a zipped batch |
+| **RAG Q&A** | Hybrid retrieval (dense + lexical) with Chinese→English term mapping; answers carry `[n]` citations that jump to the PDF page; **refuses to answer** when the material is insufficient. Handles "summarise L01" style requests that name a specific deck |
+| **Per-page AI notes** | Auto-generated key points for every page, manually editable; available in **Chinese / English / Spanish**, each stored separately |
 | **PDF reader** | Pen & highlighter, free-form text boxes on the page, outline/bookmark navigation, per-material notes |
-| **AI quiz generation** | Generate practice questions + solutions from selected materials |
+| **Practice loop** | Instant grading on selection (decided server-side); a question stays "wrong" until answered correctly, then drops out; a wrong answer offers "let the AI explain this point", carrying the question back into chat |
+| **Coverage tracking** | Materials are split into knowledge units and each one records whether it has been quizzed; daily practice and "full coverage" both advance the number, accumulating across sessions |
 | **Study aids** | Handbook, assessment weighting, weighted GPA calculator, to-do list |
+
+## Screenshots
+
+**Answers always cite a page — click to jump to it:**
+
+![RAG answer](docs/screenshots/rag-answer.png)
+
+**Practice loop: instant grading; a wrong answer can send you back to the material via "let the AI explain this point":**
+
+![Practice loop](docs/screenshots/practice-closed-loop.png)
+
+**Per-page notes in Chinese / English / Spanish, stored independently:**
+
+![Multilingual notes](docs/screenshots/notes-multilingual.png)
+
+**Coverage: turns "how much of this course have I revised" into a number:**
+
+![Coverage](docs/screenshots/coverage.png)
 
 ## Quick start
 
