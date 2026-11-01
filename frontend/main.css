@@ -177,6 +177,11 @@ label.btn { display: inline-flex; align-items: center; }
   color: var(--accent); text-decoration: none; background: var(--surface);
 }
 .cite:hover { background: var(--accent-weak); }
+/* 跨课程引用：琥珀色区分，避免和本课资料混淆 */
+.cite.cite-foreign { color: #a15c00; border-color: #e8c48a; background: #fffaf0; }
+.cite.cite-foreign:hover { background: #fdf1dc; }
+/* 开关打开时，检索范围提示也要变色，让人一眼看到「现在跨全部课程」 */
+.chat-hint.hint-foreign { color: #a15c00; }
 .guide-bar { padding: 8px 12px 0; display: flex; align-items: center; gap: 10px; flex-wrap: wrap; }
 .ext-switch {
   display: inline-flex; align-items: center; gap: 5px; margin-left: auto;

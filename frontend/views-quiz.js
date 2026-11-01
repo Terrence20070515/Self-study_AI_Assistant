@@ -376,10 +376,36 @@ function stopCovPolling() {
 }
 
 // ---------- 聊天 ----------
+// 「允许外部资料」开关：开启后跨课程检索 + 允许 AI 补充资料外知识。
+// 状态**持久化**在 localStorage（勾一次就一直生效），很容易忘了自己开着 ——
+// 所以提示文案必须跟着开关变，绝不能固定写「只在当前课程检索」。
+// 注意：这段必须在 loadMessages 之前定义，提示是它每次重建的（不是 index.html 里那个）。
+const EXT_KEY = "sls-allow-external";
+const extBox = $("#chat-allow-external");
+const HINT_SELF = '提问会<strong>只在当前课程的资料范围内</strong>检索回答，并标注出处页码。';
+const HINT_ALL = '已开启「允许外部资料」：会在<strong>全部课程</strong>的资料里检索，'
+  + '跨课程的引用会用琥珀色标出课程代码。';
+
+function extHintHtml() {
+  const cls = extBox.checked ? "chat-hint hint-foreign" : "chat-hint";
+  const body = extBox.checked ? HINT_ALL : HINT_SELF;
+  return `<div class="${cls}" id="chat-hint">${body}</div>`;
+}
+
+function syncExtState() {
+  const sw = $("#ext-switch");
+  if (sw) sw.classList.toggle("on", extBox.checked);
+  const hint = $("#chat-hint");
+  if (hint) {
+    hint.innerHTML = extBox.checked ? HINT_ALL : HINT_SELF;
+    hint.classList.toggle("hint-foreign", extBox.checked);
+  }
+}
+
 async function loadMessages() {
   const msgs = await api(`/api/courses/${courseState.currentId}/messages`);
   const log = $("#chat-log");
-  log.innerHTML = `<div class="chat-hint">提问会<strong>只在当前课程的资料范围内</strong>检索回答，并标注出处页码。</div>`;
+  log.innerHTML = extHintHtml();
   for (const m of msgs) appendMsg(m.role, m.content, m.citations);
   log.scrollTop = log.scrollHeight;
 }
@@ -410,20 +436,25 @@ function citeRow(citations) {
     a.href = "javascript:void(0)";
     if (c.material_id) a.onclick = () => openViewer(c.material_id, c.page, c.orig_name, c.ext);
     else { a.style.pointerEvents = "none"; a.style.opacity = ".7"; }
-    a.textContent = `[${c.n}] ${c.orig_name} · ${unitLabel(c.ext, c.page)}`;
+    // 开了「允许外部资料」时可能检索到别的课程：必须标出来，
+    // 否则用户在 SOE101 里看到 SPA003 的引用会以为数据串课了
+    const code = (c.foreign && c.course_code) ? `${c.course_code} · ` : "";
+    a.textContent = `[${c.n}] ${code}${c.orig_name} · ${unitLabel(c.ext, c.page)}`;
+    if (c.foreign) {
+      a.classList.add("cite-foreign");
+      a.title = `来自其他课程 ${c.course_code}（当前课程没有相关内容）`;
+    }
     row.appendChild(a);
   }
   return row;
 }
 
-// 「允许外部资料」开关：开启后跨课程检索 + 允许 AI 补充资料外知识；状态记在本地
-const EXT_KEY = "sls-allow-external";
-const extBox = $("#chat-allow-external");
+// 开关的常量与 syncExtState 定义在「聊天」区开头（loadMessages 会重建提示，必须共享同一份）
 extBox.checked = storage.get(EXT_KEY) === "1";
-$("#ext-switch").classList.toggle("on", extBox.checked);
+syncExtState();
 extBox.onchange = () => {
   storage.set(EXT_KEY, extBox.checked ? "1" : "0");
-  $("#ext-switch").classList.toggle("on", extBox.checked);
+  syncExtState();
   toast(extBox.checked
     ? "已开启外部资料：可跨课程检索，资料不足时 AI 会补充并标明"
     : "已关闭：只在当前课程资料范围内回答");

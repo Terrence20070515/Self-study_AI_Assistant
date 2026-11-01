@@ -695,9 +695,14 @@ def stream_chat(course_id: str, question: str, mode: str = "ask",
                 yield {"type": "delta", "text": delta}
         text = "".join(full)
         store.add_message(course_id, "assistant", text)
+        # course_code 必须带上：开了「允许外部资料」时检索会跨课程，
+        # 前端要能标出「这条来自别的课」，否则用户会以为 RAG 串了数据。
+        own_code = (store.get_course(course_id) or {}).get("code", "")
         yield {"type": "done", "citations": [
             {"n": i + 1, "orig_name": r["orig_name"], "page": r["page"],
-             "material_id": r["material_id"], "ext": r.get("ext") or "pdf"}
+             "material_id": r["material_id"], "ext": r.get("ext") or "pdf",
+             "course_code": r.get("course_code") or "",
+             "foreign": bool(r.get("course_code")) and r["course_code"] != own_code}
             for i, r in enumerate(results)
         ]}
     except Exception as e:  # noqa: BLE001
