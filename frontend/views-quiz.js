@@ -428,13 +428,15 @@ function appendMsg(role, content, citations = []) {
 // 安全前提：先 esc() 再替换 —— 之后只操作我们自己生成的标签，
 // AI/用户传来的尖括号此时已是实体，不存在注入。
 function formatAiText(text) {
-  const raw = esc(text);
+  const lines = esc(text).split("\n");
   const out = [];
   let list = null;           // 当前打开的列表标签名
   let code = null;           // 代码块缓冲
   const closeList = () => { if (list) { out.push(`</${list}>`); list = null; } };
 
-  for (const line of raw.split("\n")) {
+  for (let i = 0; i < lines.length; i++) {
+    const line = lines[i];
+
     if (line.trim().startsWith("```")) {
       if (code) { out.push(`<pre><code>${code.join("\n")}</code></pre>`); code = null; }
       else { closeList(); code = []; }
@@ -444,6 +446,15 @@ function formatAiText(text) {
 
     const t = line.trim();
     if (!t) { closeList(); out.push('<div class="md-gap"></div>'); continue; }
+
+    // 表格：这一行以 | 开头，且下一行是分隔行（|---|:--:|）
+    if (t.startsWith("|") && isTableDivider(lines[i + 1])) {
+      closeList();
+      const tb = renderTable(lines, i);
+      out.push(tb.html);
+      i = tb.next - 1;                 // 外层 for 还会 +1
+      continue;
+    }
 
     const h = t.match(/^(#{1,4})\s+(.+)$/);
     if (h) {
@@ -474,6 +485,38 @@ function formatAiText(text) {
   if (code) out.push(`<pre><code>${code.join("\n")}</code></pre>`);
   closeList();
   return out.join("");
+}
+
+// 表格的分隔行：|---|:---:|---:|---|（首尾竖线可省）
+function isTableDivider(line) {
+  const t = (line || "").trim();
+  return t.includes("-") && /^\|?[\s:|-]*-[\s:|-]*\|?$/.test(t);
+}
+
+// 从 start（表头行）开始渲染整张表，返回 html 和下一行的下标
+function renderTable(lines, start) {
+  const cells = (l) => l.trim().replace(/^\|/, "").replace(/\|$/, "")
+    .split("|").map(s => s.trim());
+  const head = cells(lines[start]);
+  // 分隔行决定每列对齐：---: 右、:---: 居中、:--- 左（默认左）
+  const align = cells(lines[start + 1] || "").map(d => {
+    const l = d.startsWith(":"), r = d.endsWith(":");
+    return (l && r) ? "center" : r ? "right" : "";
+  });
+  const cls = (i) => (align[i] ? ` class="md-al-${align[i]}"` : "");
+  const body = [];
+  let i = start + 2;                 // 跳过表头与分隔行
+  while (i < lines.length && lines[i].trim().startsWith("|")) {
+    body.push(cells(lines[i]));
+    i++;
+  }
+  const th = head.map((c, k) => `<th${cls(k)}>${inlineMd(c)}</th>`).join("");
+  const trs = body.map(r => `<tr>${r.map((c, k) => `<td${cls(k)}>${inlineMd(c)}</td>`).join("")}</tr>`).join("");
+  return {
+    html: '<div class="md-table-wrap"><table class="md-table">'
+      + `<thead><tr>${th}</tr></thead><tbody>${trs}</tbody></table></div>`,
+    next: i,
+  };
 }
 
 // 行内语法：引用编号、粗体、斜体、行内代码

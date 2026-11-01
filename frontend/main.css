@@ -188,6 +188,16 @@ label.btn { display: inline-flex; align-items: center; }
   border-radius: 8px; overflow-x: auto; margin: 8px 0; }
 .msg-ai pre code { background: none; padding: 0; font-size: 12px; }
 .msg-ai .cite-num { color: var(--accent); font-size: 12px; }
+/* Markdown 表格：外层可横向滚动，否则宽表会顶出气泡 */
+.msg-ai .md-table-wrap { overflow-x: auto; margin: 8px 0; }
+.msg-ai .md-table { border-collapse: collapse; font-size: 12.5px; }
+.msg-ai .md-table th, .msg-ai .md-table td {
+  border: 1px solid var(--border); padding: 5px 9px; text-align: left; vertical-align: top;
+}
+.msg-ai .md-table th { background: #f6f7f9; font-weight: 600; }
+.msg-ai .md-table tbody tr:nth-child(even) td { background: #fafbfc; }
+.msg-ai .md-table .md-al-right { text-align: right; }
+.msg-ai .md-table .md-al-center { text-align: center; }
 .msg-ai .cite-row { display: flex; flex-wrap: wrap; gap: 6px; margin-top: 8px; }
 .cite {
   font-size: 11px; border: 1px solid var(--border); border-radius: 6px; padding: 2px 8px;
