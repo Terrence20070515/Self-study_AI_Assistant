@@ -7,6 +7,7 @@
   --text-2: #8a8a83;
   --accent: #4a6b8a;
   --accent-weak: #eef2f6;
+  --on-accent: #ffffff;      /* accent 底色上的文字：深色主题里 accent 变浅，字要转深 */
   --danger: #a85b5b;
   --viewer-bg: #ececea;      /* 阅读器 / 沉浸模式的底色 */
   --warn-bg: #f6efe9;
@@ -15,6 +16,14 @@
   --radius: 10px;
   --ok: #4a7c59;             /* 答对 */
   --ok-weak: #e9f1ec;
+  /* 代码 / 表格 / 跨课标记：必须走变量，否则夜间模式下浅底浅字看不见 */
+  --code-bg: #f2f3f5;
+  --pre-bg: #f6f7f9;
+  --table-head: #f6f7f9;
+  --table-zebra: #fafbfc;
+  --warn-strong: #a15c00;
+  --warn-surface: #fffaf0;
+  --warn-border: #e8c48a;
 }
 
 /* 深色主题：由 JS 按时间自动切换（19:00–07:00） */
@@ -26,6 +35,7 @@ body.theme-dark {
   --text-2: #9b9b93;
   --accent: #86a9c9;
   --accent-weak: #2a3138;
+  --on-accent: #16232c;
   --danger: #cf8f8f;
   --viewer-bg: #121211;
   --warn-bg: #34302a;
@@ -33,6 +43,14 @@ body.theme-dark {
   --danger-weak: #3a2b2b;
   --ok: #8fbf9f;
   --ok-weak: #26302a;
+  /* 夜间：代码块/表格要比气泡底色略深一点才看得出层次，文字保持浅色 */
+  --code-bg: #2f2f2c;
+  --pre-bg: #262624;
+  --table-head: #2b2b29;
+  --table-zebra: #202020;
+  --warn-strong: #d9a860;
+  --warn-surface: #33291c;
+  --warn-border: #5a4a32;
   color-scheme: dark;
 }
 * { box-sizing: border-box; margin: 0; }
@@ -101,7 +119,7 @@ body {
   cursor: pointer; font-size: 13px; background: transparent; color: var(--text);
 }
 .btn:disabled { opacity: .5; cursor: default; }
-.btn-primary { background: var(--accent); color: #fff; }
+.btn-primary { background: var(--accent); color: var(--on-accent); }
 .btn-primary:hover:not(:disabled) { filter: brightness(1.08); }
 .btn-outline { border-color: var(--accent); color: var(--accent); }
 .btn-outline:hover { background: var(--accent-weak); }
@@ -183,8 +201,8 @@ label.btn { display: inline-flex; align-items: center; }
 .msg-ai .md-ul, .msg-ai .md-ol { margin: 4px 0 8px 20px; padding: 0; }
 .msg-ai .md-ul li, .msg-ai .md-ol li { margin: 3px 0; }
 .msg-ai .md-quote { border-left: 3px solid var(--border); padding-left: 10px; color: var(--text-2); margin: 6px 0; }
-.msg-ai code { background: #f2f3f5; padding: 1px 5px; border-radius: 4px; font-size: 12px; }
-.msg-ai pre { background: #f6f7f9; border: 1px solid var(--border); padding: 10px 12px;
+.msg-ai code { background: var(--code-bg); padding: 1px 5px; border-radius: 4px; font-size: 12px; }
+.msg-ai pre { background: var(--pre-bg); border: 1px solid var(--border); padding: 10px 12px;
   border-radius: 8px; overflow-x: auto; margin: 8px 0; }
 .msg-ai pre code { background: none; padding: 0; font-size: 12px; }
 .msg-ai .cite-num { color: var(--accent); font-size: 12px; }
@@ -194,8 +212,8 @@ label.btn { display: inline-flex; align-items: center; }
 .msg-ai .md-table th, .msg-ai .md-table td {
   border: 1px solid var(--border); padding: 5px 9px; text-align: left; vertical-align: top;
 }
-.msg-ai .md-table th { background: #f6f7f9; font-weight: 600; }
-.msg-ai .md-table tbody tr:nth-child(even) td { background: #fafbfc; }
+.msg-ai .md-table th { background: var(--table-head); font-weight: 600; }
+.msg-ai .md-table tbody tr:nth-child(even) td { background: var(--table-zebra); }
 .msg-ai .md-table .md-al-right { text-align: right; }
 .msg-ai .md-table .md-al-center { text-align: center; }
 .msg-ai .cite-row { display: flex; flex-wrap: wrap; gap: 6px; margin-top: 8px; }
@@ -205,10 +223,10 @@ label.btn { display: inline-flex; align-items: center; }
 }
 .cite:hover { background: var(--accent-weak); }
 /* 跨课程引用：琥珀色区分，避免和本课资料混淆 */
-.cite.cite-foreign { color: #a15c00; border-color: #e8c48a; background: #fffaf0; }
-.cite.cite-foreign:hover { background: #fdf1dc; }
+.cite.cite-foreign { color: var(--warn-strong); border-color: var(--warn-border); background: var(--warn-surface); }
+.cite.cite-foreign:hover { border-color: var(--warn-strong); }
 /* 开关打开时，检索范围提示也要变色，让人一眼看到「现在跨全部课程」 */
-.chat-hint.hint-foreign { color: #a15c00; }
+.chat-hint.hint-foreign { color: var(--warn-strong); }
 .guide-bar { padding: 8px 12px 0; display: flex; align-items: center; gap: 10px; flex-wrap: wrap; }
 .ext-switch {
   display: inline-flex; align-items: center; gap: 5px; margin-left: auto;
@@ -538,7 +556,7 @@ label.btn { display: inline-flex; align-items: center; }
 .dash-continue:hover { filter: brightness(1.05); }
 #reconnect-bar {
   position: fixed; bottom: 0; left: 0; right: 0; z-index: 999;
-  background: #d93025; color: #fff; text-align: center;
+  background: #d93025; color: var(--on-accent); text-align: center;
   padding: 8px; font-size: 13px; font-weight: 600;
 }
 
@@ -636,7 +654,7 @@ label.btn { display: inline-flex; align-items: center; }
   font-family: inherit;
 }
 .imm-tab:hover { background: var(--accent-weak); color: var(--text); }
-.imm-tab.active { background: var(--accent); border-color: var(--accent); color: #fff; font-weight: 600; }
+.imm-tab.active { background: var(--accent); border-color: var(--accent); color: var(--on-accent); font-weight: 600; }
 .imm-pane { display: flex; flex-direction: column; gap: 8px; min-height: 0; }
 #imm-pane-ai { flex: 1 1 auto; min-height: 0; }   /* 撑满右栏，注释区不再只占中间一小块 */
 #imm-pane-mine { flex: 1 1 auto; }
@@ -656,7 +674,7 @@ label.btn { display: inline-flex; align-items: center; }
   font-family: inherit; white-space: nowrap;
 }
 .ink-tool:hover, .ink-act:hover { border-color: var(--accent); background: var(--accent-weak); }
-.ink-tool.active { background: var(--accent); color: #fff; border-color: var(--accent); font-weight: 600; }
+.ink-tool.active { background: var(--accent); color: var(--on-accent); border-color: var(--accent); font-weight: 600; }
 .ink-sep { width: 1px; height: 18px; background: var(--border); margin: 0 3px; flex-shrink: 0; }
 .ink-colors { display: inline-flex; gap: 5px; align-items: center; }
 .ink-dot {
@@ -753,7 +771,7 @@ label.btn { display: inline-flex; align-items: center; }
   font-family: inherit;
 }
 .nb-btn:hover { border-color: var(--accent); color: var(--accent); }
-.nb-btn.active { background: var(--accent); color: #fff; border-color: var(--accent); font-weight: 600; }
+.nb-btn.active { background: var(--accent); color: var(--on-accent); border-color: var(--accent); font-weight: 600; }
 .note-hint { font-size: 11px; }
 
 .note-editor {
