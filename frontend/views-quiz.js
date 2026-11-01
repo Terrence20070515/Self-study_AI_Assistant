@@ -414,17 +414,75 @@ function appendMsg(role, content, citations = []) {
   const log = $("#chat-log");
   const div = document.createElement("div");
   div.className = role === "user" ? "msg msg-user" : "msg msg-ai";
-  div.innerHTML = formatAiText(content);
+  // 只有 AI 的消息按 Markdown 渲染；用户输入的是纯文本，不该把 * 当成语法
+  div.innerHTML = role === "assistant" ? formatAiText(content) : esc(content).replace(/\n/g, "<br>");
   if (role === "assistant" && citations?.length) div.appendChild(citeRow(citations));
   log.appendChild(div);
   log.scrollTop = log.scrollHeight;
   return div;
 }
 
+// 把模型输出的 Markdown 渲染成 HTML。
+// 原来这里只做「转义 + 把 \n 换成 <br>」，于是 **粗体**、### 标题、- 列表
+// 全原样露在回答里，可读性很差。
+// 安全前提：先 esc() 再替换 —— 之后只操作我们自己生成的标签，
+// AI/用户传来的尖括号此时已是实体，不存在注入。
 function formatAiText(text) {
-  let html = esc(text);
-  html = html.replace(/\[(\d{1,2})\]/g, '<span style="color:var(--accent);font-size:12px">[$1]</span>');
-  return html.replace(/\n/g, "<br>");
+  const raw = esc(text);
+  const out = [];
+  let list = null;           // 当前打开的列表标签名
+  let code = null;           // 代码块缓冲
+  const closeList = () => { if (list) { out.push(`</${list}>`); list = null; } };
+
+  for (const line of raw.split("\n")) {
+    if (line.trim().startsWith("```")) {
+      if (code) { out.push(`<pre><code>${code.join("\n")}</code></pre>`); code = null; }
+      else { closeList(); code = []; }
+      continue;
+    }
+    if (code) { code.push(line); continue; }
+
+    const t = line.trim();
+    if (!t) { closeList(); out.push('<div class="md-gap"></div>'); continue; }
+
+    const h = t.match(/^(#{1,4})\s+(.+)$/);
+    if (h) {
+      closeList();
+      out.push(`<div class="md-h md-h${h[1].length}">${inlineMd(h[2])}</div>`);
+      continue;
+    }
+    const ul = t.match(/^[-*+]\s+(.+)$/);
+    if (ul) {
+      if (list !== "ul") { closeList(); out.push('<ul class="md-ul">'); list = "ul"; }
+      out.push(`<li>${inlineMd(ul[1])}</li>`);
+      continue;
+    }
+    const ol = t.match(/^\d+[.、)]\s+(.+)$/);
+    if (ol) {
+      if (list !== "ol") { closeList(); out.push('<ol class="md-ol">'); list = "ol"; }
+      out.push(`<li>${inlineMd(ol[1])}</li>`);
+      continue;
+    }
+    if (t.startsWith("&gt;")) {          // 引用（esc 之后 > 已变成 &gt;）
+      closeList();
+      out.push(`<div class="md-quote">${inlineMd(t.replace(/^&gt;\s?/, ""))}</div>`);
+      continue;
+    }
+    closeList();
+    out.push(`<div class="md-p">${inlineMd(t)}</div>`);
+  }
+  if (code) out.push(`<pre><code>${code.join("\n")}</code></pre>`);
+  closeList();
+  return out.join("");
+}
+
+// 行内语法：引用编号、粗体、斜体、行内代码
+function inlineMd(s) {
+  return s
+    .replace(/\[(\d{1,2})\]/g, '<span class="cite-num">[$1]</span>')
+    .replace(/\*\*([^*]+)\*\*/g, "<strong>$1</strong>")
+    .replace(/(^|[^*])\*([^*\n]+)\*(?!\*)/g, "$1<em>$2</em>")
+    .replace(/`([^`]+)`/g, "<code>$1</code>");
 }
 
 function citeRow(citations) {
