@@ -321,7 +321,18 @@ label.btn { display: inline-flex; align-items: center; }
 .quiz-card .q-opt.wrong { border-color: var(--danger); background: var(--danger-weak); }
 .quiz-card .q-refs {
   margin-top: 8px; font-size: 11px; color: var(--text-2);
-  display: flex; flex-wrap: wrap; gap: 6px;
+  display: flex; flex-wrap: wrap; gap: 6px; align-items: center;
+}
+/* 「看原页」：课件图文一体，文字提取拿不到图，让用户直接对照原页答题 */
+.q-ref-img {
+  font-size: 11px; border: 1px solid var(--border); border-radius: 6px;
+  background: var(--surface); color: var(--text-2); padding: 2px 8px;
+  cursor: pointer; font-family: inherit;
+}
+.q-ref-img:hover { border-color: var(--accent); color: var(--accent); }
+.q-ref-view { margin-top: 10px; }
+.q-ref-view img {
+  max-width: 100%; border: 1px solid var(--border); border-radius: 8px; display: block;
 }
 .quiz-card .q-short-hint { margin-top: 6px; font-size: 12px; color: var(--text-2); }
 

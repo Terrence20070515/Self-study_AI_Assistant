@@ -117,12 +117,39 @@ function quizCard(q, i) {
   const refs = (q.refs || []).map(r =>
     `<a class="cite" href="javascript:void(0)" data-mid="${r.material_id}" data-page="${r.page}" data-ext="${r.ext || "pdf"}">${esc(r.orig_name)} · ${unitLabel(r.ext, r.page)}</a>`
   ).join(" ");
+  // 课件里大量内容是图文一体的（ER 图、执行计划、界面截图），文字提取拿不到图。
+  // 给一个「看原页」按钮，按需渲染该页，用户不用切到阅读器就能对照着答题。
+  const firstPdf = (q.refs || []).find(r => (r.ext || "pdf") === "pdf");
+  const picBtn = firstPdf
+    ? `<button class="q-ref-img" data-mid="${firstPdf.material_id}" data-page="${firstPdf.page}">看原页</button>`
+    : "";
   card.innerHTML = `
     <div class="q-title">${i + 1}. ${esc(q.question)}</div>
     ${choices ? `<div class="q-opts">${choices}</div>`
               : `<div class="q-short-hint">简答题：参考答案在下方，不参与判分</div>`}
-    ${refs ? `<div class="q-refs">${refs}</div>` : ""}
+    ${refs ? `<div class="q-refs">${refs}${picBtn}</div>` : ""}
     <div class="q-fb hidden"></div>`;
+  const picEl = card.querySelector(".q-ref-img");
+  if (picEl) {
+    picEl.onclick = () => {
+      let box = card.querySelector(".q-ref-view");
+      if (!box) {
+        box = document.createElement("div");
+        box.className = "q-ref-view hidden";   // 先隐藏，下面的 toggle 负责打开
+        box.innerHTML = `<img alt="原页" loading="lazy">`;
+        card.insertBefore(box, card.querySelector(".q-fb"));
+      }
+      const open = box.classList.toggle("hidden") === false;
+      if (open) {
+        const img = box.querySelector("img");
+        if (!img.getAttribute("src")) {   // 只在第一次展开时请求，避免一次出题就打一堆图
+          img.src = `/api/materials/${picEl.dataset.mid}/page-image`
+            + `?page=${picEl.dataset.page}&width=1000`;
+        }
+      }
+      picEl.textContent = open ? "收起原页" : "看原页";
+    };
+  }
   card.querySelectorAll(".q-refs .cite").forEach(a => {
     a.onclick = () => openViewer(a.dataset.mid, Number(a.dataset.page), "", a.dataset.ext);
   });

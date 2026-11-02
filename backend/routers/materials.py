@@ -5,7 +5,7 @@ import threading
 import zipfile
 
 from fastapi import APIRouter, File, HTTPException, UploadFile
-from fastapi.responses import FileResponse, StreamingResponse
+from fastapi.responses import FileResponse, Response, StreamingResponse
 
 from .. import core, store
 from ..config import material_file_path
@@ -56,6 +56,30 @@ def api_download_material(mid: str):
         material_file_path(mid, ext), filename=mat["orig_name"],
         media_type="application/octet-stream",
     )
+
+
+@router.get("/api/materials/{mid}/page-image")
+def api_page_image(mid: str, page: int, width: int = 900):
+    """把某一页渲染成 PNG —— 题目/回答引用课件里的图时，让用户直接对照原页。
+
+    文字提取拿不到图，而课件里大量内容是「图文一体」的（ER 图、查询执行计划、
+    界面截图）。只把文字给出去，题目就会变成「如下图」但没有图。
+    """
+    mat = store.get_material(mid)
+    if not mat or mat["deleted"]:
+        raise HTTPException(404, "资料不存在")
+    if (mat.get("ext") or "pdf") != "pdf":
+        raise HTTPException(400, "只有 PDF 能渲染页面图")
+    if page < 1:
+        raise HTTPException(400, "页码至少为 1")
+    width = max(300, min(1600, width))
+    try:
+        png = core.render_page_png(material_file_path(mid, "pdf"), page, width)
+    except ValueError as e:
+        raise HTTPException(400, str(e))
+    # 同一页图不会变，让浏览器缓存一天，省得每次翻题都重新渲染
+    return Response(content=png, media_type="image/png",
+                    headers={"Cache-Control": "private, max-age=86400"})
 
 
 @router.post("/api/materials/export")

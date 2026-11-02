@@ -64,6 +64,22 @@ def parse_pdf(path: str) -> list[tuple[int, str]]:
     return pages
 
 
+def render_page_png(path: str, page_no: int, width: int = 900) -> bytes:
+    """把 PDF 的某一页渲染成 PNG。
+
+    用途：题目/回答引用了课件里的图，而文字提取拿不到图 —— 只给文字用户没法作答
+    （典型如「如下图所示的 ER 图」）。这里直接把原页渲出来，让人对照着看。
+    缩放限制在 0.5~3 倍，避免超宽页渲出几 MB 的图。
+    """
+    with fitz.open(path) as doc:
+        if page_no < 1 or page_no > doc.page_count:
+            raise ValueError(f"页码超出范围（共 {doc.page_count} 页）")
+        page = doc[page_no - 1]
+        zoom = max(0.5, min(3.0, width / max(1.0, page.rect.width)))
+        pix = page.get_pixmap(matrix=fitz.Matrix(zoom, zoom))
+        return pix.tobytes("png")
+
+
 # 分块参数：块大小与相邻块重叠字数（检索召回率与上下文体量的折中）
 CHUNK_SIZE = 600
 CHUNK_OVERLAP = 100
@@ -1175,7 +1191,11 @@ def _quiz_from_units(units: list, kind: str = "choice", temperature: float = 0.7
         "2. 选择题给 4 个选项（A/B/C/D）；简答题 options 为空数组。\n"
         "3. answer 填正确选项字母（如 A）或简答参考答案；explanation 简要说明。\n"
         "4. **每道题都必须填 refs**，写它依据的片段编号，如 [2]（必填）。\n"
-        '5. 只输出 JSON，格式：{"questions":[{"question":"...","options":["A...","B...","C...","D..."],'
+        "5. **题干必须自包含**：禁止出现「如下图」「上表所示」「图中第 X 行」这类指代 ——\n"
+        "   你看到的只是文字提取结果，图不在里面，这样出题会变成没有图的题。\n"
+        "   需要图里的信息时，用文字把关键内容写出来（例如「一个包含 学生/课程/选课 三张表的结构」）；\n"
+        "   实在离不开图才能答的（如「这条 SQL 的执行计划长什么样」），跳过该片段、少出一题。\n"
+        "6. 只输出 JSON，格式：{\"questions\":[{\"question\":\"...\",\"options\":[\"A...\",\"B...\",\"C...\",\"D...\"],"
         '"answer":"A","explanation":"...","refs":[1]}]}\n\n'
         f"【资料片段】\n{context}"
     )
