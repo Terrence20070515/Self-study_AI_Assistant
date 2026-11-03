@@ -1116,6 +1116,24 @@ def unit_keys_for(material_ids: list) -> list:
     return keys
 
 
+# 封面 / 目录 / 日程页：内容是元信息而不是知识点。
+# 用字数上限兜住「正文页提到 assessment」的情况 —— 那种是在讲评分规则，属于课程内容，
+# 不能一起过滤掉。只有又短又满是元信息词的页才判为 meta。
+_META_PAGE = re.compile(
+    r"agenda|schedule|assessment|grading|learning outcomes|today'?s (task|plan)|"
+    r"course outline|目录|课程安排|考核|学习目标|主讲人|讲师|lecturer|instructor",
+    re.I,
+)
+_META_PAGE_MAX_CHARS = 600
+
+
+def _is_meta_page(text: str) -> bool:
+    t = (text or "").strip()
+    if not t or len(t) > _META_PAGE_MAX_CHARS:
+        return False
+    return bool(_META_PAGE.search(t))
+
+
 def build_knowledge_units(material_ids: list) -> list:
     """把 chunk 按页聚合成知识点单元（出题的基本单位）。"""
     rows = store.chunks_for_materials(material_ids)
@@ -1138,6 +1156,10 @@ def build_knowledge_units(material_ids: list) -> list:
             continue
         text = "\n".join(c.get("text") or "" for c in chunks).strip()
         if not text:
+            continue
+        # 封面 / 目录 / 日程 / 考核说明这类页没有可考的知识点，
+        # 硬做成单元只会逼模型出「主讲人是谁」「目录有哪些章节」这种题。
+        if _is_meta_page(text):
             continue
         if len(keys) == 1:
             segs = [text]
@@ -1172,6 +1194,22 @@ def _pack_units(units: list, max_units: int, char_budget: int) -> list:
     return out
 
 
+# 元信息题：问谁讲的、目录是什么、这页讲了什么 —— 对备考零价值。
+# 提示词里已经禁止，但模型偶尔还是会犯，这里兜一道（宁缺毋滥）。
+_META_Q = re.compile(
+    r"主讲人|讲师|授课人|课程安排|考核|评分标准|联系方式|目录|第几章|第几页|"
+    r"本页讲(了)?什么|这一讲讲|lecturer|instructor|who is the (teacher|lecturer)|"
+    r"agenda|schedule|assessment|grading|contact|file name|"
+    r"what does this (slide|page|lecture) (talk about|cover)",
+    re.I,
+)
+
+
+def _quiz_is_meta(q: dict) -> bool:
+    text = (q.get("question") or "") + " " + " ".join(q.get("options") or [])
+    return bool(_META_Q.search(text))
+
+
 def _quiz_from_units(units: list, kind: str = "choice", temperature: float = 0.7) -> list:
     """给一批知识点单元，一次调用生成题目。
 
@@ -1184,19 +1222,41 @@ def _quiz_from_units(units: list, kind: str = "choice", temperature: float = 0.7
              for i, u in enumerate(units, 1)]
     context = "\n\n".join(parts)
     prompt = (
-        f"请严格基于下面的课程资料片段，**为每一个编号的片段各出 1 道题**"
-        f"（共 {len(units)} 个片段，就出 {len(units)} 道题；"
-        f"题型：{QUIZ_KIND_LABEL.get(kind, '选择题')}），用于帮助我复习。要求：\n"
-        "1. 只能使用资料中出现过的知识点，禁止引入资料外的内容。\n"
-        "2. 选择题给 4 个选项（A/B/C/D）；简答题 options 为空数组。\n"
-        "3. answer 填正确选项字母（如 A）或简答参考答案；explanation 简要说明。\n"
-        "4. **每道题都必须填 refs**，写它依据的片段编号，如 [2]（必填）。\n"
-        "5. **题干必须自包含**：禁止出现「如下图」「上表所示」「图中第 X 行」这类指代 ——\n"
-        "   你看到的只是文字提取结果，图不在里面，这样出题会变成没有图的题。\n"
-        "   需要图里的信息时，用文字把关键内容写出来（例如「一个包含 学生/课程/选课 三张表的结构」）；\n"
-        "   实在离不开图才能答的（如「这条 SQL 的执行计划长什么样」），跳过该片段、少出一题。\n"
-        "6. 只输出 JSON，格式：{\"questions\":[{\"question\":\"...\",\"options\":[\"A...\",\"B...\",\"C...\",\"D...\"],"
-        '"answer":"A","explanation":"...","refs":[1]}]}\n\n'
+        "你是这门课的出题老师。下面每个编号片段是课件的一页，"
+        f"请为每一个片段各出 1 道题（共 {len(units)} 道，题型：{QUIZ_KIND_LABEL.get(kind, '选择题')}），"
+        "用于**备考**。\n\n"
+        "【唯一核心标准】\n"
+        "好题能区分「真懂了」和「背了这句原文」。**任何把课件原句抄一遍就能答的题，都不要出。**\n\n"
+        "【绝对不要出】\n"
+        "- 元信息：主讲人/讲师是谁、这一讲讲了什么、目录有哪些章节、课程安排、"
+        "考核占比、联系方式、文件叫什么、第几页\n"
+        "- 纯定义复述：「X 是什么」，且答案就是原文那一句\n"
+        "- 无意义数字记忆（除非数字本身就是考点，如存储范围、复杂度量级）\n\n"
+        "【优先从这四个角度里选最贴合该页内容的一个】\n"
+        "1. **辨析**：两个容易混淆的概念 / 两种写法，区别在哪、什么情况下用哪个\n"
+        "2. **应用**：给一个具体情形，问该怎么做 / 会得到什么结果 / 为什么这样设计\n"
+        "3. **排查**：这个做法、这条语句、这个设计错在哪，为什么错\n"
+        "4. **推理**：改动某个前提，结果会怎么变\n\n"
+        "【正例】\n"
+        "页内容：外键约束、参照完整性\n"
+        "→ Q: A row is inserted into Enrollment with a StudentID that does not exist in "
+        "Students. With a FOREIGN KEY constraint defined, what happens?\n"
+        "  （考的是约束何时、以何种方式生效，而不是背定义）\n\n"
+        "【反例（出了等于浪费备考时间）】\n"
+        "→ Q: Who is the lecturer of this lecture?          ✗ 元信息\n"
+        "→ Q: What is a foreign key?                         ✗ 原文抄一句就能答\n"
+        "→ Q: What does this slide talk about?               ✗ 问了个寂寞\n\n"
+        "【硬性格式】\n"
+        "- **全部英文**：question / options / answer / explanation 一律英文，"
+        "术语保持原文；我要靠刷这些题适应英文授课与考试\n"
+        "- 选择题给 4 个选项（A/B/C/D）；简答题 options 为空数组\n"
+        "- answer：正确选项字母，或简答的参考答案；explanation 用英文讲清**为什么**（2~3 句）\n"
+        "- **每题必填 refs**（所依据的片段编号，如 [2]）\n"
+        "- 题干必须自包含：不许写「如下图」「上表所示」「图中第 X 行」—— 你看到的只有文字，"
+        "图不在里面。需要图里的信息就用文字描述出来；实在离不开图的（如 what the query plan "
+        "looks like），跳过该片段、少出一题\n"
+        "- 只输出 JSON：{\"questions\":[{\"question\":\"...\",\"options\":[\"A...\",\"B...\",\"C...\",\"D...\"],"
+        "\"answer\":\"A\",\"explanation\":\"...\",\"refs\":[1]}]}\n\n"
         f"【资料片段】\n{context}"
     )
     cfg = load_config()
@@ -1211,7 +1271,12 @@ def _quiz_from_units(units: list, kind: str = "choice", temperature: float = 0.7
     data = _json.loads(resp.choices[0].message.content)
     qs = data.get("questions", [])
     out = []
+    dropped = 0
     for idx, q in enumerate(qs[:len(units)]):
+        # 提示词已经要求不许出元信息题，但模型偶尔还是会给 —— 这里兜一道
+        if _quiz_is_meta(q):
+            dropped += 1
+            continue
         refs = []
         for n in (q.get("refs") or []):
             if isinstance(n, int) and 1 <= n <= len(units):
@@ -1236,6 +1301,8 @@ def _quiz_from_units(units: list, kind: str = "choice", temperature: float = 0.7
             "material_id": owner["material_id"] if owner else "",
             "page": owner["page"] if owner else 0,
         })
+    if dropped:
+        print(f"[quiz] 丢弃 {dropped} 道元信息题（主讲人/目录/日程这类）", flush=True)
     return out
 
 
