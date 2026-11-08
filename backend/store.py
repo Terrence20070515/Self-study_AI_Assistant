@@ -166,6 +166,7 @@ def init_db():
                 explanation TEXT NOT NULL DEFAULT '',
                 refs TEXT NOT NULL DEFAULT '[]',
                 unit_key TEXT NOT NULL DEFAULT '',
+                level TEXT NOT NULL DEFAULT '',
                 created_at REAL NOT NULL
             )"""
         )
@@ -247,6 +248,9 @@ def _migrate():
         qcols = {r["name"] for r in c.execute("PRAGMA table_info(quiz_questions)").fetchall()}
         if qcols and "unit_key" not in qcols:
             c.execute("ALTER TABLE quiz_questions ADD COLUMN unit_key TEXT NOT NULL DEFAULT ''")
+        # 题目难度标签（easy/medium/hard）；老库补列，已有题为空串，前端不显示
+        if qcols and "level" not in qcols:
+            c.execute("ALTER TABLE quiz_questions ADD COLUMN level TEXT NOT NULL DEFAULT ''")
         # 从未排过序（全为 0）时按 id 初始化一次
         if c.execute("SELECT COUNT(*) AS n FROM todos WHERE ord != 0").fetchone()["n"] == 0:
             c.execute("UPDATE todos SET ord = id")
@@ -641,9 +645,12 @@ def save_quiz_questions(course_id: str, questions: list) -> list:
             # 出题侧不返回 kind，这里按有无选项判定（选择题才有选项）
             kind = str(q.get("kind") or ("choice" if opts else "short"))
             unit_key = str(q.get("unit_key") or "")
+            level = str(q.get("level") or "").lower()
+            if level not in ("easy", "medium", "hard"):   # 模型偶尔给别的词，存空表示未标注
+                level = ""
             cur = c.execute(
                 "INSERT INTO quiz_questions(course_id, kind, question, options, answer,"
-                " explanation, refs, unit_key, created_at) VALUES(?,?,?,?,?,?,?,?,?)",
+                " explanation, refs, unit_key, level, created_at) VALUES(?,?,?,?,?,?,?,?,?,?)",
                 (
                     course_id,
                     kind,
@@ -653,6 +660,7 @@ def save_quiz_questions(course_id: str, questions: list) -> list:
                     str(q.get("explanation") or ""),
                     json.dumps(q.get("refs") or [], ensure_ascii=False),
                     unit_key,
+                    level,
                     now(),
                 ),
             )

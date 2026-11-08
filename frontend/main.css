@@ -305,6 +305,14 @@ label.btn { display: inline-flex; align-items: center; }
 
 .quiz-card { border: 1px solid var(--border); border-radius: 8px; padding: 12px 14px; }
 .quiz-card .q-title { font-weight: 600; line-height: 1.6; }
+/* 难度标签：模型按「答对需要想几步」自评（easy/medium/hard），与出题档位是两回事 */
+.q-level {
+  display: inline-block; font-size: 10px; font-weight: 600; line-height: 1.6;
+  padding: 0 6px; border-radius: 4px; margin-right: 6px; vertical-align: 1px;
+}
+.q-level-easy { background: var(--ok-weak); color: var(--ok); }
+.q-level-medium { background: var(--warn-surface); color: var(--warn-strong); }
+.q-level-hard { background: var(--danger-weak); color: var(--danger); }
 
 /* 选项：点选即判分，判完锁定 —— locked:hover 必须写在 correct/wrong 之前，
    否则同权重下会盖掉对错的背景色 */

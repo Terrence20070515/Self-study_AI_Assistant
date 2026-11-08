@@ -109,6 +109,9 @@ function renderQuiz(questions) {
   questions.forEach((q, i) => box.appendChild(quizCard(q, i)));
 }
 
+// 难度标签：模型按「答对需要想几步」自评，与出题时选的档位是两回事
+const QUIZ_LEVEL_LABEL = { easy: "易", medium: "中", hard: "难" };
+
 function quizCard(q, i) {
   const card = document.createElement("div");
   card.className = "quiz-card";
@@ -124,8 +127,10 @@ function quizCard(q, i) {
   const picBtn = firstPdf
     ? `<button class="q-ref-img" data-mid="${firstPdf.material_id}" data-page="${firstPdf.page}">看原页</button>`
     : "";
+  const lvText = QUIZ_LEVEL_LABEL[q.level];
+  const lv = lvText ? `<span class="q-level q-level-${q.level}">${lvText}</span>` : "";
   card.innerHTML = `
-    <div class="q-title">${i + 1}. ${esc(q.question)}</div>
+    <div class="q-title">${lv}${i + 1}. ${esc(q.question)}</div>
     ${choices ? `<div class="q-opts">${choices}</div>`
               : `<div class="q-short-hint">简答题：参考答案在下方，不参与判分</div>`}
     ${refs ? `<div class="q-refs">${refs}${picBtn}</div>` : ""}

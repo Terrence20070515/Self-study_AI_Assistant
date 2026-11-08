@@ -1296,7 +1296,15 @@ def _quiz_from_units(units: list, kind: str = "choice", temperature: float = 0.7
         "图不在里面。需要图里的信息就用文字描述出来；实在离不开图的（如 what the query plan "
         "looks like），跳过该片段、少出一题\n"
         "- 只输出 JSON：{\"questions\":[{\"question\":\"...\",\"options\":[\"A...\",\"B...\",\"C...\",\"D...\"],"
-        "\"answer\":\"A\",\"explanation\":\"...\",\"refs\":[1]}]}\n\n"
+        "\"answer\":\"A\",\"explanation\":\"...\",\"refs\":[1],\"level\":\"medium\"}]}\n\n"
+        "【难度标注 level（必填）】\n"
+        "按**答对它需要想几步**判：\n"
+        "- easy：认出概念 / 记住区别就能答，一步\n"
+        "- medium：要在一个典型情形里用一次，两步\n"
+        "- hard：要排查、权衡取舍、或考虑边界，三步以上\n"
+        "**这一项独立于上面选的出题档位**：档位是目标，level 是这题实际长什么样，"
+        "两者允许不一致（比如选了标准档，但某道题抽到的页偏细，level 就该老实标 hard）。\n"
+        "不要为了整齐一律标 medium —— 那样这个标签就没用了。\n\n"
         f"【资料片段】\n{context}"
     )
     cfg = load_config()
@@ -1337,6 +1345,7 @@ def _quiz_from_units(units: list, kind: str = "choice", temperature: float = 0.7
             "answer": q.get("answer", ""),
             "explanation": q.get("explanation", ""),
             "refs": refs,
+            "level": str(q.get("level") or "").lower(),   # easy/medium/hard，store 侧再校验
             "unit_key": owner["unit_key"] if owner else "",
             "material_id": owner["material_id"] if owner else "",
             "page": owner["page"] if owner else 0,
