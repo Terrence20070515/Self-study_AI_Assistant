@@ -1210,7 +1210,53 @@ def _quiz_is_meta(q: dict) -> bool:
     return bool(_META_Q.search(text))
 
 
-def _quiz_from_units(units: list, kind: str = "choice", temperature: float = 0.7) -> list:
+# 难度分档。默认 standard —— 之前只有「挑战」一档（排查/推理），
+# 用户反馈太难：从「复述原文」直接跳到「多步推理」，中间少了「理解」这一层。
+_LEVEL_BLOCK = {
+    "basic": (
+        "【难度：基础】\n"
+        "目标是**确认你真的懂了概念**，不要设复杂场景、不要多步推理。\n"
+        "适合的题：\n"
+        "- 判断某种说法对不对（拿常见误解当干扰项：看起来像对的错说法）\n"
+        "- 两个容易混的概念，区别在哪\n"
+        "- 某个术语 / 机制在什么情况下适用、解决什么问题\n"
+        "**不要抠具体语法细节、参数顺序、罕见特性**。如果这一页全是语法表/参数表，"
+        "就出「这个机制解决什么问题」「它和 XX 有什么区别」，不要出「这段代码输出什么」。\n"
+        "【正例】页内容：外键约束\n"
+        "→ Q: Which statement about a FOREIGN KEY constraint is correct?\n"
+        "  （选项里放几种常见误解，选对就说明概念清楚）\n\n"
+    ),
+    "standard": (
+        "【难度：标准】\n"
+        "目标是**在典型情形下用得出来**：给一个直接、常见的场景，"
+        "问该怎么做 / 会得到什么结果 / 为什么要这样设计。\n"
+        "**一个弯就够**，别套两三层；不考生僻边界。\n"
+        "【正例】页内容：外键约束\n"
+        "→ Q: A row is inserted into Enrollment with a StudentID that does not exist in "
+        "Students. With a FOREIGN KEY defined, what happens?\n"
+        "  （典型情形，考约束何时生效，不是背定义）\n\n"
+    ),
+    "challenge": (
+        "【难度：挑战】\n"
+        "目标是**排查与推理**：给一个容易写错的做法 / 设计 / 语句，问题在哪、为什么、怎么改；"
+        "或改动某个前提，推断结果怎么变。\n"
+        "可以用边界情况和反直觉结论，但必须能从片段推出来。\n"
+        "【正例】页内容：二级索引\n"
+        "→ Q: The optimizer will not use a secondary index even if it exists. "
+        "Should the designer still add it?\n"
+        "  （要权衡开销与收益，不是查条文）\n\n"
+    ),
+}
+_LEVELS = tuple(_LEVEL_BLOCK)
+
+
+def _norm_level(level: str) -> str:
+    level = (level or "").strip().lower()
+    return level if level in _LEVEL_BLOCK else "standard"
+
+
+def _quiz_from_units(units: list, kind: str = "choice", temperature: float = 0.7,
+                     difficulty: str = "standard") -> list:
     """给一批知识点单元，一次调用生成题目。
 
     单元直接作为 context 条目 —— refs 的编号就是单元编号，每道题据此回填
@@ -1232,24 +1278,18 @@ def _quiz_from_units(units: list, kind: str = "choice", temperature: float = 0.7
         "考核占比、联系方式、文件叫什么、第几页\n"
         "- 纯定义复述：「X 是什么」，且答案就是原文那一句\n"
         "- 无意义数字记忆（除非数字本身就是考点，如存储范围、复杂度量级）\n\n"
-        "【优先从这四个角度里选最贴合该页内容的一个】\n"
-        "1. **辨析**：两个容易混淆的概念 / 两种写法，区别在哪、什么情况下用哪个\n"
-        "2. **应用**：给一个具体情形，问该怎么做 / 会得到什么结果 / 为什么这样设计\n"
-        "3. **排查**：这个做法、这条语句、这个设计错在哪，为什么错\n"
-        "4. **推理**：改动某个前提，结果会怎么变\n\n"
-        "【正例】\n"
-        "页内容：外键约束、参照完整性\n"
-        "→ Q: A row is inserted into Enrollment with a StudentID that does not exist in "
-        "Students. With a FOREIGN KEY constraint defined, what happens?\n"
-        "  （考的是约束何时、以何种方式生效，而不是背定义）\n\n"
         "【反例（出了等于浪费备考时间）】\n"
         "→ Q: Who is the lecturer of this lecture?          ✗ 元信息\n"
         "→ Q: What is a foreign key?                         ✗ 原文抄一句就能答\n"
         "→ Q: What does this slide talk about?               ✗ 问了个寂寞\n\n"
+        + _LEVEL_BLOCK[_norm_level(difficulty)] +
         "【硬性格式】\n"
         "- **全部英文**：question / options / answer / explanation 一律英文，"
         "术语保持原文；我要靠刷这些题适应英文授课与考试\n"
         "- 选择题给 4 个选项（A/B/C/D）；简答题 options 为空数组\n"
+        "- **选项质量**：四个选项都要「看起来像对的」—— 用常见误解做干扰项，"
+        "不要放「procedures can never accept parameters」这种一眼假的凑数项；"
+        "正确项也不能明显比其他项长\n"
         "- answer：正确选项字母，或简答的参考答案；explanation 用英文讲清**为什么**（2~3 句）\n"
         "- **每题必填 refs**（所依据的片段编号，如 [2]）\n"
         "- 题干必须自包含：不许写「如下图」「上表所示」「图中第 X 行」—— 你看到的只有文字，"
@@ -1306,7 +1346,8 @@ def _quiz_from_units(units: list, kind: str = "choice", temperature: float = 0.7
     return out
 
 
-def generate_quiz(course_id: str, material_ids: list, num: int = 5, kind: str = "choice") -> dict:
+def generate_quiz(course_id: str, material_ids: list, num: int = 5, kind: str = "choice",
+                  difficulty: str = "standard") -> dict:
     """练习模式出题：按知识点单元抽样，**优先抽还没出过题的**。
 
     这样日常练习本身就在推进覆盖率，而不是反复考同一批内容。
@@ -1326,14 +1367,15 @@ def generate_quiz(course_id: str, material_ids: list, num: int = 5, kind: str = 
         picked = random.sample(units, min(num, len(units)))
     random.shuffle(picked)
     return {
-        "questions": _quiz_from_units(picked, kind),
+        "questions": _quiz_from_units(picked, kind, difficulty=difficulty),
         "units_total": len(units),
         "units_fresh": len(fresh),
     }
 
 
 def generate_quiz_full(course_id: str, material_ids: list, kind: str = "choice",
-                       on_progress=None, max_batches: int = 40) -> dict:
+                       on_progress=None, max_batches: int = 40,
+                       difficulty: str = "standard") -> dict:
     """全面覆盖出题：遍历范围内**所有未出过题**的知识点，分批生成。
 
     分批是这里的关键——一次调用处理一批知识点，调用次数从「单元数」压到
@@ -1348,7 +1390,7 @@ def generate_quiz_full(course_id: str, material_ids: list, kind: str = "choice",
     run = batches[:max_batches]
     added = 0
     for i, batch in enumerate(run, 1):
-        qs = _quiz_from_units(batch, kind)
+        qs = _quiz_from_units(batch, kind, difficulty=difficulty)
         store.save_quiz_questions(course_id, qs)
         added += len(qs)
         if on_progress:

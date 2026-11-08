@@ -59,6 +59,7 @@ $("#btn-quiz").onclick = async () => {
         material_ids: ids,
         num: Number($("#quiz-num").value),
         kind: $("#quiz-kind").value,
+        difficulty: $("#quiz-level").value,
       }),
     });
     startQuiz(r.questions || []);
@@ -348,7 +349,11 @@ $("#btn-quiz-full").onclick = async () => {
   try {
     const r = await api(`/api/courses/${courseState.currentId}/quiz/full`, {
       method: "POST", headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ material_ids: ids, kind: $("#quiz-kind").value }),
+      body: JSON.stringify({
+        material_ids: ids,
+        kind: $("#quiz-kind").value,
+        difficulty: $("#quiz-level").value,
+      }),
     });
     if (!r.started) {
       toast(r.reason || "无需覆盖");

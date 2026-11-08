@@ -4,7 +4,7 @@
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
 <title>Self-Learning Space</title>
-<link rel="stylesheet" href="main.css?v=20261102b">
+<link rel="stylesheet" href="main.css?v=20261108a">
 </head>
 <body>
 <div class="layout">
@@ -205,6 +205,11 @@
                 <option value="choice">仅选择题</option>
                 <option value="mixed">混合题型</option>
                 <option value="short">仅简答题</option>
+              </select>
+              <select id="quiz-level" class="input input-sm" title="基础＝确认概念懂了；标准＝典型情形会用；挑战＝排查与推理">
+                <option value="basic">基础</option>
+                <option value="standard" selected>标准</option>
+                <option value="challenge">挑战</option>
               </select>
               <button id="btn-toggle-quiz-scope" class="btn btn-outline btn-sm">选择范围</button>
               <button id="btn-quiz-wrong" class="btn btn-outline btn-sm">错题重练</button>
@@ -579,11 +584,11 @@
     }, 3000);
   });
 </script>
-<script src="core.js?v=20261102b"></script>
-  <script src="views-home.js?v=20261102b"></script>
-  <script src="views-course.js?v=20261102b"></script>
-  <script src="views-quiz.js?v=20261102b"></script>
-  <script src="views-tools.js?v=20261102b"></script>
-  <script src="main.js?v=20261102b"></script>
+<script src="core.js?v=20261108a"></script>
+  <script src="views-home.js?v=20261108a"></script>
+  <script src="views-course.js?v=20261108a"></script>
+  <script src="views-quiz.js?v=20261108a"></script>
+  <script src="views-tools.js?v=20261108a"></script>
+  <script src="main.js?v=20261108a"></script>
 </body>
 </html>

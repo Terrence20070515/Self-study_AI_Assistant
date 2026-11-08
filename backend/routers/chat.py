@@ -39,8 +39,9 @@ def api_quiz(cid: str, body: dict):
     except (TypeError, ValueError):
         num = 5
     kind = body.get("kind", "choice")
+    difficulty = body.get("difficulty", "standard")   # basic / standard / challenge
     try:
-        r = core.generate_quiz(cid, material_ids, num=num, kind=kind)
+        r = core.generate_quiz(cid, material_ids, num=num, kind=kind, difficulty=difficulty)
     except ValueError as e:
         raise HTTPException(400, str(e))
     except RuntimeError as e:  # 未配置 API Key 等
@@ -102,7 +103,8 @@ def api_quiz_full(cid: str, body: dict):
 
         try:
             res = core.generate_quiz_full(cid, material_ids, kind=kind,
-                                          on_progress=on_progress, max_batches=limit)
+                                          on_progress=on_progress, max_batches=limit,
+                                          difficulty=body.get("difficulty", "standard"))
             left = max(0, res["pending_units"] - res["added"])
             state.update(
                 status="ok", added=res["added"], pending_left=left,
