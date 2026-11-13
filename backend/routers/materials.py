@@ -29,6 +29,31 @@ def api_material_pdf(mid: str):
     return FileResponse(material_file_path(mid, ext), filename=mat["orig_name"])
 
 
+@router.get("/api/materials/{mid}/block-notes")
+def api_get_block_notes(mid: str):
+    """Word 文档的段落批注：{块序号: 内容}。块序号 = docx-html 里顶层元素的顺序。"""
+    mat = store.get_material(mid)
+    if not mat or mat["deleted"]:
+        raise HTTPException(404, "资料不存在")
+    return {"notes": {str(k): v for k, v in store.get_block_notes(mid).items()}}
+
+
+@router.post("/api/materials/{mid}/block-notes")
+def api_set_block_note(mid: str, body: dict):
+    """写 / 改 / 清空某一段的批注（content 为空即删除）。"""
+    mat = store.get_material(mid)
+    if not mat or mat["deleted"]:
+        raise HTTPException(404, "资料不存在")
+    try:
+        idx = int(body.get("block"))
+    except (TypeError, ValueError):
+        raise HTTPException(400, "block 必须是整数")
+    if idx < 0 or idx > 100000:
+        raise HTTPException(400, "block 超出合理范围")
+    store.set_block_note(mid, idx, str(body.get("content") or "")[:4000])
+    return {"ok": True}
+
+
 @router.get("/api/materials/{mid}/docx-html")
 def api_material_docx_html(mid: str):
     """docx 转 HTML，供内置阅读器展示。"""

@@ -476,6 +476,81 @@ async function hasPdfVersion(mid) {
   } catch (e) { return false; }
 }
 
+// ---------- Word 段落批注 ----------
+// 锚定的是「第几个块」，不是像素坐标 —— 所以滚动、缩放、换窗口宽度都不会错位，
+// 也不需要把 Word 转成 PDF（那只是为了固定分页，批注本身并不需要分页）。
+async function decorateDocxBlocks(mid, root) {
+  let notes = {};
+  try {
+    notes = (await api(`/api/materials/${mid}/block-notes`)).notes || {};
+  } catch (e) { /* 批注拉不到不影响阅读 */ }
+  [...root.children].forEach((el, idx) => {
+    if (!el.tagName || el.tagName === "BR") return;
+    if (el.classList.contains("docx-note-box")) return;   // 别把批注框当成段落
+    el.classList.add("docx-blk");
+    el.dataset.blk = idx;
+    const btn = document.createElement("button");
+    btn.className = "docx-note-add";
+    btn.textContent = "+";
+    btn.title = "在这一段旁加批注";
+    btn.onclick = (ev) => { ev.stopPropagation(); editBlockNote(el, mid, idx); };
+    el.appendChild(btn);
+    if (notes[idx]) renderBlockNote(el, mid, idx, notes[idx]);
+  });
+}
+
+function renderBlockNote(el, mid, idx, text) {
+  const box = document.createElement("div");
+  box.className = "docx-note-box";
+  box.textContent = text;
+  box.title = "点击编辑";
+  box.onclick = (ev) => { ev.stopPropagation(); editBlockNote(el, mid, idx); };
+  el.after(box);
+  el._noteBox = box;
+  return box;
+}
+
+function editBlockNote(el, mid, idx) {
+  const existing = el._noteBox;
+  if (existing && existing.querySelector("textarea")) return;   // 已经在编辑了
+  const box = existing || document.createElement("div");
+  const ta = document.createElement("textarea");
+  ta.value = existing ? existing.textContent : "";
+  ta.placeholder = "写点批注…（点别处保存，清空即删除）";
+  ta.rows = 3;
+  box.className = "docx-note-box editing";
+  box.textContent = "";
+  box.appendChild(ta);
+  if (!existing) { el.after(box); el._noteBox = box; }
+  ta.focus();
+  ta.setSelectionRange(ta.value.length, ta.value.length);
+  ta.onblur = async () => {
+    const text = ta.value.trim();
+    try {
+      await api(`/api/materials/${mid}/block-notes`, {
+        method: "POST", headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ block: idx, content: text }),
+      });
+    } catch (e) {
+      toast("批注没保存上：" + e.message);
+      return;
+    }
+    if (!text) {
+      box.remove();
+      el._noteBox = null;
+      return;
+    }
+    box.className = "docx-note-box";
+    box.textContent = text;
+    box.title = "点击编辑";
+    box.onclick = (ev) => { ev.stopPropagation(); editBlockNote(el, mid, idx); };
+  };
+  ta.onkeydown = (e) => {
+    if (e.key === "Escape") ta.blur();
+    if (e.key === "Enter" && (e.metaKey || e.ctrlKey)) ta.blur();
+  };
+}
+
 async function openViewer(materialId, page = 0, name = "", ext = "") {   // page=0 表示"接着上次读"
   if (!ext) {
     const m = materialState.list.find(x => x.id === materialId);
@@ -507,6 +582,7 @@ async function openViewer(materialId, page = 0, name = "", ext = "") {   // page
       if (!res.ok) throw new Error("无法加载 Word 文档");
       const data = await res.json();
       $("#pv-html").innerHTML = data.html || "<p>（空文档）</p>";
+      decorateDocxBlocks(materialId, $("#pv-html"));   // 挂上段落批注
       $("#pv-loading").classList.add("hidden");
       $("#pv-scroll").scrollTop = 0;
       return;

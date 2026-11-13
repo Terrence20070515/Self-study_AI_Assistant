@@ -427,6 +427,29 @@ label.btn { display: inline-flex; align-items: center; }
   max-width: 820px; width: 100%; padding: 48px 56px; line-height: 1.8; font-size: 14px;
   height: fit-content;
 }
+/* Word 段落批注：「+」挂在段落左侧（hover 才显形），批注显示在段落下方 */
+.pv-html .docx-blk { position: relative; }
+.pv-html .docx-note-add {
+  position: absolute; left: -28px; top: 2px; width: 20px; height: 20px;
+  display: grid; place-items: center; padding: 0;
+  border-radius: 50%; border: 1px solid var(--border);
+  background: var(--surface); color: var(--text-2);
+  font-size: 14px; line-height: 1; cursor: pointer; opacity: 0;
+  transition: opacity .15s, border-color .15s;
+}
+.pv-html .docx-blk:hover .docx-note-add { opacity: 1; }
+.pv-html .docx-note-add:hover { border-color: var(--accent); color: var(--accent); }
+.docx-note-box {
+  margin: 4px 0 12px; padding: 7px 12px;
+  border-left: 3px solid var(--warn-border); background: var(--warn-surface);
+  border-radius: 0 6px 6px 0; font-size: 13px; line-height: 1.7;
+  color: var(--text); cursor: text; white-space: pre-wrap;
+}
+.docx-note-box.editing { padding: 6px 10px; }
+.docx-note-box textarea {
+  width: 100%; border: none; background: transparent; resize: vertical;
+  font: inherit; color: inherit; min-height: 46px; outline: none;
+}
 .pv-html h1 { font-size: 22px; margin: 18px 0 10px; }
 .pv-html h2 { font-size: 18px; margin: 16px 0 8px; }
 .pv-html h3 { font-size: 15px; margin: 14px 0 6px; }

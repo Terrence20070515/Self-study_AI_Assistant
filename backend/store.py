@@ -141,6 +141,18 @@ def init_db():
                 PRIMARY KEY(material_id, page, lang)
             )"""
         )
+        # Word 段落批注：block_idx 是该文档 HTML 里顶层块的序号。
+        # 和 page_notes 分开存 —— 那张表是「AI 逐页注释」（按 lang 分中/英/西），
+        # 用户的批注混进去会被 AI 覆盖，语义也完全不同。
+        c.execute(
+            """CREATE TABLE IF NOT EXISTS block_notes(
+                material_id TEXT NOT NULL,
+                block_idx INTEGER NOT NULL,
+                content TEXT NOT NULL DEFAULT '',
+                updated_at REAL NOT NULL,
+                PRIMARY KEY(material_id, block_idx)
+            )"""
+        )
         # 待办事项（DDL + 具体事项；ord 为手动排序位；course_id 关联来源课程）
         c.execute(
             """CREATE TABLE IF NOT EXISTS todos(
@@ -571,6 +583,35 @@ def marked_pages(material_id: str) -> dict:
 
 
 # ---------- 沉浸模式逐页注释 ----------
+
+def get_block_notes(material_id: str) -> dict:
+    """该 Word 文档的所有段落批注：{block_idx: content}。"""
+    with _conn() as c:
+        rows = c.execute(
+            "SELECT block_idx, content FROM block_notes WHERE material_id=?",
+            (material_id,),
+        ).fetchall()
+    return {int(r["block_idx"]): r["content"] for r in rows}
+
+
+def set_block_note(material_id: str, block_idx: int, content: str):
+    """写或清空某一段的批注（content 为空即删除）。"""
+    content = (content or "").strip()
+    with _conn() as c:
+        if content:
+            c.execute(
+                "INSERT INTO block_notes(material_id, block_idx, content, updated_at)"
+                " VALUES(?,?,?,?)"
+                " ON CONFLICT(material_id, block_idx)"
+                " DO UPDATE SET content=excluded.content, updated_at=excluded.updated_at",
+                (material_id, block_idx, content, now()),
+            )
+        else:
+            c.execute(
+                "DELETE FROM block_notes WHERE material_id=? AND block_idx=?",
+                (material_id, block_idx),
+            )
+
 
 def get_notes(material_id: str, lang: str = "zh"):
     """取某份资料某语言的逐页注释（默认中文）。"""
