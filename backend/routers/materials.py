@@ -19,6 +19,13 @@ def api_material_pdf(mid: str):
     if not mat or mat["deleted"]:
         raise HTTPException(404, "资料不存在")
     ext = (mat.get("ext") or "pdf").lower()
+    if ext == "docx":
+        # Word 有转换版就按 PDF 返回 —— 阅读器、圈画、逐页注释全走同一条链路；
+        # 没有转换版就 404，前端会自动退回 HTML 阅读器
+        conv = material_file_path(mid, "pdf")
+        if os.path.exists(conv):
+            return FileResponse(conv)
+        raise HTTPException(404, "该 Word 文档没有 PDF 版本（安装 LibreOffice 后重新导入即可）")
     return FileResponse(material_file_path(mid, ext), filename=mat["orig_name"])
 
 
@@ -68,13 +75,21 @@ def api_page_image(mid: str, page: int, width: int = 900):
     mat = store.get_material(mid)
     if not mat or mat["deleted"]:
         raise HTTPException(404, "资料不存在")
-    if (mat.get("ext") or "pdf") != "pdf":
-        raise HTTPException(400, "只有 PDF 能渲染页面图")
+    ext = (mat.get("ext") or "pdf").lower()
+    if ext == "docx":
+        # Word 走转换后的 PDF；还没转就明确告诉用户原因
+        src = material_file_path(mid, "pdf")
+        if not os.path.exists(src):
+            raise HTTPException(400, "该 Word 文档没有 PDF 版本（安装 LibreOffice 后重新导入即可）")
+    elif ext == "pdf":
+        src = material_file_path(mid, "pdf")
+    else:
+        raise HTTPException(400, "只有 PDF / Word 能渲染页面图")
     if page < 1:
         raise HTTPException(400, "页码至少为 1")
     width = max(300, min(1600, width))
     try:
-        png = core.render_page_png(material_file_path(mid, "pdf"), page, width)
+        png = core.render_page_png(src, page, width)
     except ValueError as e:
         raise HTTPException(400, str(e))
     # 同一页图不会变，让浏览器缓存一天，省得每次翻题都重新渲染
@@ -218,6 +233,11 @@ def _ingest_file_bytes(course_id: str, filename: str, raw: bytes) -> str:
     mid = store.add_material(course_id, filename, core.guess_tag(filename), len(raw), ext)
     with open(material_file_path(mid, ext), "wb") as f:
         f.write(raw)
+    # Word 顺手转一份 PDF：装了 LibreOffice 才有，转到就是真分页，
+    # 阅读器 / 圈画 / 逐页注释 / 页图全部复用 PDF 那条链路；
+    # 没装工具就静默跳过，前端会退回 HTML 阅读器。
+    if ext == "docx":
+        core.convert_docx_to_pdf(material_file_path(mid, "docx"))
     core.process_material_async(mid)
     return mid
 

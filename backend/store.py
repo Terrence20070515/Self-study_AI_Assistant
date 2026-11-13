@@ -827,8 +827,14 @@ def purge_material(mid: str) -> dict | None:
 # ---------- chunks / retrieval ----------
 
 def add_chunks(course_id: str, material_id: str, chunks: list[tuple[int, int, str, bytes]]):
-    """chunks: [(page, ord, text, embedding_bytes)]"""
+    """chunks: [(page, ord, text, embedding_bytes)]
+
+    **幂等**：先清掉该资料的旧分块再插入。
+    重新解析是常事（比如 Word 转出 PDF 后改成分页解析），不清旧数据就会留两套分块，
+    检索时同一段内容出现两次、出处页码还互相打架。删除与插入同一连接，不会留半套。
+    """
     with _conn() as c:
+        c.execute("DELETE FROM chunks WHERE material_id=?", (material_id,))
         c.executemany(
             "INSERT INTO chunks(material_id, course_id, page, ord, text, embedding) VALUES(?,?,?,?,?,?)",
             [(material_id, course_id, p, o, t, e) for p, o, t, e in chunks],

@@ -8,6 +8,8 @@ os.environ.setdefault("HF_HUB_DISABLE_XET", "1")
 
 import json
 import re
+import shutil
+import subprocess
 import threading
 from typing import Iterator
 
@@ -203,10 +205,19 @@ def process_material(material_id: str):
         ext = (mat.get("ext") or "pdf").lower()
         path = material_file_path(material_id, ext)
         if ext == "docx":
-            blocks = parse_docx(path)
-            chunks = chunk_docx(blocks)
-            total_units = len(chunks)
-            empty_msg = "Word 文档中没有可提取的文字（可能是纯图片内容）"
+            # 有 LibreOffice 转出的 PDF 就用它解析：真实分页，引用页码才准；
+            # 没有转换产物才退回「按文本块近似分段」（page 记的是块序号）。
+            pdf_ver = material_file_path(material_id, "pdf")
+            if os.path.exists(pdf_ver):
+                pages = parse_pdf(pdf_ver)
+                chunks = chunk_pages(pages)
+                total_units = max((p for p, _ in pages), default=0)
+                empty_msg = "Word 文档（已转 PDF）中没有可提取的文字"
+            else:
+                blocks = parse_docx(path)
+                chunks = chunk_docx(blocks)
+                total_units = len(chunks)
+                empty_msg = "Word 文档中没有可提取的文字（可能是纯图片内容）"
         else:
             pages = parse_pdf(path)
             chunks = chunk_pages(pages)
@@ -716,7 +727,9 @@ def stream_chat(course_id: str, question: str, mode: str = "ask",
         own_code = (store.get_course(course_id) or {}).get("code", "")
         yield {"type": "done", "citations": [
             {"n": i + 1, "orig_name": r["orig_name"], "page": r["page"],
-             "material_id": r["material_id"], "ext": r.get("ext") or "pdf",
+             "material_id": r["material_id"],
+             # Word 若已转出 PDF，引用按 PDF 呈现（页码是页、跳转进沉浸模式）
+             "ext": _cite_ext(r),
              "course_code": r.get("course_code") or "",
              "foreign": bool(r.get("course_code")) and r["course_code"] != own_code}
             for i, r in enumerate(results)
@@ -830,6 +843,66 @@ def generate_page_notes_batch(course_name: str, pages: list, lang: str = "zh") -
 
 
 # ---------- HandBook 扫描 ----------
+
+# ---------- Word → PDF ----------
+# Word 文档要走和 PDF 一样的阅读 / 圈画 / 逐页注释，前提是**有固定分页**。
+# 用 LibreOffice 转一份 PDF，下游全部复用 PDF 那条链路；转不了就退回 HTML 阅读器。
+_SOFFICE_CANDIDATES = (
+    "/Applications/LibreOffice.app/Contents/MacOS/soffice",
+    "/opt/homebrew/bin/soffice",
+    "/usr/local/bin/soffice",
+)
+
+
+def soffice_path() -> str:
+    for p in _SOFFICE_CANDIDATES:
+        if os.path.exists(p):
+            return p
+    return shutil.which("soffice") or ""
+
+
+def has_pdf_preview(material_id: str) -> bool:
+    """docx 是否已经有转换出的 PDF（决定前端走沉浸模式还是 HTML 阅读器）。"""
+    from .config import material_file_path
+    return os.path.exists(material_file_path(material_id, "pdf"))
+
+
+def convert_docx_to_pdf(src: str, out_dir: str = "") -> str:
+    """docx → PDF，返回产物路径；没装 LibreOffice 或转换失败返回空串。
+
+    产物按源文件主名命名，正好落在 material_file_path(mid, "pdf") 上，
+    所以下游的阅读器、页图渲染、分页注释都不用改路径规则。
+
+    用独立的 UserInstallation 目录：并发转换时 LibreOffice 会争用默认 profile
+    直接失败，指定一个临时 profile 就避开了。
+    """
+    exe = soffice_path()
+    if not exe or not os.path.exists(src):
+        return ""
+    out_dir = out_dir or os.path.dirname(src)
+    stem = os.path.splitext(os.path.basename(src))[0]
+    out = os.path.join(out_dir, stem + ".pdf")
+    try:
+        subprocess.run(
+            [exe, "--headless", "--norestore", "--nolockcheck",
+             "-env:UserInstallation=file:///tmp/lo_profile_" + str(os.getpid()),
+             "--convert-to", "pdf", "--outdir", out_dir, src],
+            check=True, timeout=180,
+            stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL,
+        )
+    except (OSError, subprocess.SubprocessError):
+        return ""
+    return out if os.path.exists(out) and os.path.getsize(out) > 0 else ""
+
+
+def _cite_ext(row: dict) -> str:
+    """引用该按什么呈现：Word 已有转换版就按 PDF（页码是页、跳转进沉浸模式），
+    否则用它自己的扩展名。"""
+    ext = (row.get("ext") or "pdf").lower()
+    if ext == "docx" and has_pdf_preview(str(row.get("material_id") or "")):
+        return "pdf"
+    return ext
+
 
 def docx_to_html_cached(path: str) -> str:
     """docx 转 HTML，带磁盘缓存（mammoth 转换不便宜，同一份文档只转一次）。
@@ -1331,7 +1404,7 @@ def _quiz_from_units(units: list, kind: str = "choice", temperature: float = 0.7
                 u = units[n - 1]
                 refs.append({"n": n, "material_id": u["material_id"],
                              "orig_name": u["orig_name"], "page": u["page"],
-                             "ext": u.get("ext") or "pdf"})
+                             "ext": _cite_ext(u)})
         # 归属知识点：取它引用的第一个片段；模型漏填 refs 时退回「按出题顺序对齐」
         if refs:
             owner = units[refs[0]["n"] - 1]

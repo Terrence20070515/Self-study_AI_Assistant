@@ -468,15 +468,28 @@ function pvSetDocxMode(on) {
   $("#pv-page-input").disabled = on;
 }
 
+// Word 资料有没有转换出的 PDF（决定走沉浸模式还是 HTML 阅读器）
+async function hasPdfVersion(mid) {
+  try {
+    const r = await fetch(`/api/materials/${mid}/pdf`, { method: "HEAD" });
+    return r.ok;
+  } catch (e) { return false; }
+}
+
 async function openViewer(materialId, page = 0, name = "", ext = "") {   // page=0 表示"接着上次读"
   if (!ext) {
     const m = materialState.list.find(x => x.id === materialId);
     ext = (m && m.ext) || "pdf";
   }
   // PDF 走统一的三栏阅读界面（原「阅读」与「沉浸」已合并成一套，见 openImmersive）
-  // docx 仍走下面 #pdf-viewer 这套：沉浸界面只支持 PDF，所以旧代码保留
   if (ext !== "docx") {
     return openImmersive({ id: materialId, orig_name: name || "阅读中…", ext }, page);
+  }
+  // Word：如果已经用 LibreOffice 转出了 PDF，就直接进沉浸模式 —— 圈画、逐页注释、
+  // 页图、文字层选择和 PDF 完全一致（ext 传 pdf，页码显示才是「第 N 页」）；
+  // 还没转才退回下面的 HTML 阅读器。
+  if (await hasPdfVersion(materialId)) {
+    return openImmersive({ id: materialId, orig_name: name || "阅读中…", ext: "pdf" }, page);
   }
   const isDocx = ext === "docx";
   $("#pv-title").textContent = name || "阅读中…";
