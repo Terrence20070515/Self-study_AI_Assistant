@@ -1322,6 +1322,23 @@ _LEVEL_BLOCK = {
 }
 _LEVELS = tuple(_LEVEL_BLOCK)
 
+# 题型规则。之前只写了「简答题 options 为空数组」，模型照旧给 4 个选项 ——
+# 因为整段提示词的语境都是选择题。必须按题型说清「全部出什么、不要出什么」。
+_KIND_RULE = {
+    "choice": (
+        "**全部出四选一选择题**：每题 4 个选项（A/B/C/D），answer 填正确字母。\n"
+    ),
+    "short": (
+        "**全部出简答题**：options 必须是**空数组 []**，一个选项都不要给 —— "
+        "这是要我自己写答案的题，给了选项就变成选择题了。\n"
+        "answer 写完整参考答案（英文，3~5 句，把要点说全）。\n"
+    ),
+    "mixed": (
+        "**选择题与简答题交替**：奇数题四选一（4 个选项、answer 填字母），"
+        "偶数题简答（options 为空数组、answer 写参考答案）。\n"
+    ),
+}
+
 
 def _norm_level(level: str) -> str:
     level = (level or "").strip().lower()
@@ -1359,7 +1376,7 @@ def _quiz_from_units(units: list, kind: str = "choice", temperature: float = 0.7
         "【硬性格式】\n"
         "- **全部英文**：question / options / answer / explanation 一律英文，"
         "术语保持原文；我要靠刷这些题适应英文授课与考试\n"
-        "- 选择题给 4 个选项（A/B/C/D）；简答题 options 为空数组\n"
+        + _KIND_RULE.get(kind, _KIND_RULE["choice"]) +
         "- **选项质量**：四个选项都要「看起来像对的」—— 用常见误解做干扰项，"
         "不要放「procedures can never accept parameters」这种一眼假的凑数项；"
         "正确项也不能明显比其他项长\n"
@@ -1414,7 +1431,9 @@ def _quiz_from_units(units: list, kind: str = "choice", temperature: float = 0.7
             owner = None
         out.append({
             "question": q.get("question", ""),
-            "options": q.get("options") or [],
+            # 简答题一律不带选项：模型偶尔还是会塞 4 个进来（它把题型当成了选择题），
+            # 清空比让前端显示一道「有选项的简答题」诚实
+            "options": [] if kind == "short" else (q.get("options") or []),
             "answer": q.get("answer", ""),
             "explanation": q.get("explanation", ""),
             "refs": refs,

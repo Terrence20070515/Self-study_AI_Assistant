@@ -151,10 +151,18 @@ def api_attempt(qid: int, body: dict):
     q = store.get_quiz_question(qid)
     if not q:
         raise HTTPException(404, "题目不存在")
-    if not (q.get("options") or []):
-        raise HTTPException(400, "该题不是选择题，暂不支持自动判分")
-    pick = str(body.get("answer") or "").strip()
-    correct = _judge(q, pick)
+    opts = q.get("options") or []
+    if not opts:
+        # 简答题没法自动判分 → 让用户自评。但**必须记录**：
+        # 之前这里直接 400，导致刷简答题对覆盖率、薄弱点、错题重练都没有任何贡献。
+        self_ok = body.get("self")
+        if self_ok is None:
+            raise HTTPException(400, "简答题请用 self=true/false 表示自评结果")
+        correct = bool(self_ok)
+        pick = "self:correct" if correct else "self:wrong"
+    else:
+        pick = str(body.get("answer") or "").strip()
+        correct = _judge(q, pick)
     store.record_attempt(qid, pick, correct)
     st = store.quiz_stats(q["course_id"])
     return {

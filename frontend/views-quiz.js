@@ -132,7 +132,7 @@ function quizCard(q, i) {
   card.innerHTML = `
     <div class="q-title">${lv}${i + 1}. ${esc(q.question)}</div>
     ${choices ? `<div class="q-opts">${choices}</div>`
-              : `<div class="q-short-hint">简答题：参考答案在下方，不参与判分</div>`}
+              : `<div class="q-short-hint">简答题：先自己写，再看参考答案，然后自评</div>`}
     ${refs ? `<div class="q-refs">${refs}${picBtn}</div>` : ""}
     <div class="q-fb hidden"></div>`;
   const picEl = card.querySelector(".q-ref-img");
@@ -197,6 +197,30 @@ async function submitAnswer(card, q, el) {
   }
 }
 
+// 简答题自评：记一次作答，让覆盖率 / 薄弱点 / 错题重练也能收到简答题。
+// 之前简答题是「只看答案不记录」，刷了多少都不进台账。
+async function selfJudge(card, q, ok, bar) {
+  bar.className = "q-self done";
+  bar.textContent = ok ? "已记为「会」" : "已记为「不会」";
+  try {
+    await api(`/api/quiz/questions/${q.id}/attempt`, {
+      method: "POST", headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ self: ok }),
+    });
+    loadCoverage();
+  } catch (e) {
+    toast("没记上：" + e.message);
+    return;
+  }
+  if (!ok) {
+    const btn = document.createElement("button");
+    btn.className = "btn btn-outline btn-sm q-ask";
+    btn.textContent = "让 AI 讲讲这个知识点";
+    btn.onclick = () => askAboutQuestion(q, null);
+    card.querySelector(".q-fb").appendChild(btn);
+  }
+}
+
 function showFeedback(card, q, pick, correct) {
   const ans = pickLetter(q.answer);
   card.querySelectorAll(".q-opt").forEach(o => {
@@ -211,6 +235,21 @@ function showFeedback(card, q, pick, correct) {
     fb.className = "q-fb";
     fb.innerHTML = `<b>参考答案：</b>${esc(q.answer)}` +
       (q.explanation ? `<div class="q-exp">${esc(q.explanation)}</div>` : "");
+    // 简答题没法自动判分，但要自评一次 —— 否则刷简答题对覆盖率、薄弱点、
+    // 错题重练都没有贡献，等于白刷。
+    const bar = document.createElement("div");
+    bar.className = "q-self";
+    bar.innerHTML = "<span>你写出来了吗？</span>";
+    const okBtn = document.createElement("button");
+    okBtn.className = "btn btn-outline btn-sm";
+    okBtn.textContent = "写出来了";
+    const badBtn = document.createElement("button");
+    badBtn.className = "btn btn-outline btn-sm";
+    badBtn.textContent = "没写出来";
+    okBtn.onclick = () => selfJudge(card, q, true, bar);
+    badBtn.onclick = () => selfJudge(card, q, false, bar);
+    bar.append(okBtn, badBtn);
+    fb.appendChild(bar);
     return;
   }
   fb.className = "q-fb " + (correct ? "ok" : "bad");
@@ -240,7 +279,7 @@ async function askAboutQuestion(q, pick) {
     question:
       `我答错了下面这道题，请结合课程资料把这个知识点讲清楚${src}。\n\n` +
       `题目：${q.question}\n` +
-      `我的答案：${pick}\n` +
+      `我的答案：${pick || "（简答题，没写出来）"}\n` +
       `正确答案：${q.answer}\n\n` +
       `请先说明正确答案为什么对、我选的为什么错，再把相关知识点完整讲一遍，` +
       `最后指出我容易混淆的地方。`,

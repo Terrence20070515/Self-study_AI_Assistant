@@ -351,6 +351,12 @@ label.btn { display: inline-flex; align-items: center; }
 }
 .quiz-card .q-fb.ok { background: var(--ok-weak); }
 .quiz-card .q-fb.bad { background: var(--danger-weak); }
+/* 简答题自评：让它的结果也能进覆盖率和错题台账 */
+.quiz-card .q-self {
+  display: flex; align-items: center; gap: 8px;
+  margin-top: 10px; font-size: 12px; color: var(--text-2);
+}
+.quiz-card .q-self.done { color: var(--ok); font-weight: 600; }
 .quiz-card .q-fb.ok b { color: var(--ok); }
 .quiz-card .q-fb.bad b { color: var(--danger); }
 .quiz-card .q-fb .q-exp { margin-top: 5px; color: var(--text-2); }
