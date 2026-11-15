@@ -53,11 +53,12 @@ $("#btn-quiz").onclick = async () => {
   renderQuizBar();
   box.innerHTML = `<div class="quiz-empty">正在基于所选 ${ids.length} 份资料出题…</div>`;
   try {
+    const before = await loadCoverage();   // 出题前记一次覆盖数，出完好对比增量
     const r = await api(`/api/courses/${courseState.currentId}/quiz`, {
       method: "POST", headers: { "Content-Type": "application/json" },
       body: JSON.stringify({
         material_ids: ids,
-        num: 5,                       // 固定一批 5 道，不再给题量选项
+        num: Number($("#quiz-num").value),   // 默认 5，可调
         kind: $("#quiz-kind").value,
         difficulty: $("#quiz-level").value,
       }),
@@ -68,7 +69,11 @@ $("#btn-quiz").onclick = async () => {
     if (r.units_fresh === 0 && r.units_total) {
       toast(`这 ${r.units_total} 个知识点都出过题了，这批是复练`);
     }
-    loadCoverage();          // 出题会记台账，覆盖率要跟着动
+    // 出题会记台账 → 覆盖率要跟着动。顺便对比前后差多少：
+    // 5 道题摊在 400+ 个知识点上只有 1%，光看进度条几乎察觉不到变化。
+    const after = await loadCoverage();
+    const added = (before && after) ? after.covered - before.covered : 0;
+    if (added > 0) toast(`这批新增覆盖 ${added} 个知识点`);
   } catch (err) {
     box.innerHTML = `<div class="quiz-empty">${esc(err.message)}</div>`;
   } finally {
@@ -119,7 +124,7 @@ function ensureNextBatch() {
   tip.textContent = "这批做完了 · 继续下一批";
   const btn = document.createElement("button");
   btn.className = "btn btn-primary btn-sm";
-  btn.textContent = "再来 5 题";
+  btn.textContent = `再来 ${$("#quiz-num").value} 题`;
   btn.onclick = () => $("#btn-quiz").click();
   wrap.append(tip, btn);
   box.appendChild(wrap);
