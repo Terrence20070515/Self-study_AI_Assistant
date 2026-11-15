@@ -319,20 +319,55 @@ function showFeedback(card, q, pick, correct) {
 // ---------- 错题回流学习 ----------
 // 带着题目上下文跳进问答：题干 + 我错选了什么 + 正确答案 + 出自哪一页，
 // 这样检索能锁定到这道题对应的知识点，而不是泛泛地聊。
+// 把选项字母还原成完整文本。答疑时必须带上原文 —— 只给 "B" 和 "A"，
+// 模型根本不知道这两个选项分别写了什么，只能泛泛讲知识点，答非所问。
+function optFull(q, letter) {
+  const L = pickLetter(letter);
+  if (!L) return "";
+  const hit = (q.options || []).find(o => pickLetter(o) === L);
+  return (hit || L).trim();
+}
+
 async function askAboutQuestion(q, pick) {
   switchTab("study");
   const ref = (q.refs || [])[0];
   const src = ref ? `（出自《${ref.orig_name}》第 ${ref.page} 页）` : "";
   const brief = q.question.length > 34 ? q.question.slice(0, 34) + "…" : q.question;
-  appendMsg("user", `这道题答错了，讲讲这个知识点：${brief}`);
+  const opts = (q.options || []).filter(o => String(o).trim());
+  const isChoice = opts.length > 0 && !!pick;
+  const ansL = pickLetter(q.answer);
+
+  if (!isChoice) {                       // 简答题：没有我选的，只有参考答案
+    appendMsg("user", `这道题没写出来，讲讲要点：${brief}`);
+    await runChat({
+      question:
+        `这道简答题我没写出来，请结合课程资料讲清楚${src}。\n\n` +
+        `题目：${q.question}\n` +
+        `参考答案：${q.answer}\n\n` +
+        `请把参考答案拆成几个要点，逐点说明为什么必须包含它、` +
+        `资料里哪一处支持这一点，最后给出一个「考场上一分钟能想起来的思路」。`,
+      mode: "ask",
+    });
+    return;
+  }
+
+  const myL = pickLetter(pick);
+  const mine = optFull(q, myL);
+  const right = optFull(q, ansL);
+  appendMsg("user", `这道题答错了，讲讲为什么 ${myL} 不对：${brief}`);
   await runChat({
     question:
-      `我答错了下面这道题，请结合课程资料把这个知识点讲清楚${src}。\n\n` +
+      `我答错了下面这道题，请结合课程资料讲清楚${src}。\n\n` +
       `题目：${q.question}\n` +
-      `我的答案：${pick || "（简答题，没写出来）"}\n` +
-      `正确答案：${q.answer}\n\n` +
-      `请先说明正确答案为什么对、我选的为什么错，再把相关知识点完整讲一遍，` +
-      `最后指出我容易混淆的地方。`,
+      `选项：\n${opts.map(o => `  ${String(o).trim()}`).join("\n")}\n\n` +
+      `我选了：${mine}　← 错的\n` +
+      `正确答案：${right}\n\n` +
+      `要求**紧扣上面这几个具体选项**，不要泛泛讲整章内容，按顺序回答：\n` +
+      `1. 正确答案「${right}」为什么对：它对应资料里的哪条规则 / 哪个机制；\n` +
+      `2. 我选的「${mine}」具体错在哪一步：是我记混了哪个概念，还是漏了某个前提；\n` +
+      `3. 这个错项为什么会吸引人选：它看起来成立的那一点是什么，下次怎么一眼排除；\n` +
+      `4. 其余两个选项各错在哪，一句话一个；\n` +
+      `5. 最后两三句话收口：给一个能把这四个选项区分开的判据。`,
     mode: "ask",
   });
 }
