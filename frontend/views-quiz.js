@@ -19,6 +19,7 @@ function renderQuizScope() {
     label.querySelector("input").onchange = (e) => {
       e.target.checked ? quizState.selected.add(m.id) : quizState.selected.delete(m.id);
       updateScopeCount();
+      scheduleCoverageRefresh();
     };
     box.appendChild(label);
   }
@@ -26,6 +27,14 @@ function renderQuizScope() {
   const ids = new Set(list.map(m => m.id));
   for (const id of [...quizState.selected]) if (!ids.has(id)) quizState.selected.delete(id);
   updateScopeCount();
+}
+
+// 勾选/取消资料后立刻刷新覆盖率 —— 让「范围变了，分母就跟着变」是看得见的。
+// 连续勾多个时防抖，避免每点一个 checkbox 就打一次请求。
+let covRefreshTimer = null;
+function scheduleCoverageRefresh() {
+  clearTimeout(covRefreshTimer);
+  covRefreshTimer = setTimeout(() => { loadCoverage(); }, 220);
 }
 
 function updateScopeCount() {
@@ -39,9 +48,18 @@ $("#quiz-tag-filter").addEventListener("click", (e) => {
   quizState.scopeTag = chip.dataset.tag;
   document.querySelectorAll("#quiz-tag-filter .chip").forEach(c => c.classList.toggle("active", c === chip));
   renderQuizScope();
+  scheduleCoverageRefresh();   // 换标签会清掉不在列表里的选中项，范围变了要跟着刷
 });
-$("#btn-quiz-all").onclick = () => { quizCandidates().forEach(m => quizState.selected.add(m.id)); renderQuizScope(); };
-$("#btn-quiz-none").onclick = () => { quizState.selected.clear(); renderQuizScope(); };
+$("#btn-quiz-all").onclick = () => {
+  quizCandidates().forEach(m => quizState.selected.add(m.id));
+  renderQuizScope();
+  scheduleCoverageRefresh();
+};
+$("#btn-quiz-none").onclick = () => {
+  quizState.selected.clear();
+  renderQuizScope();
+  scheduleCoverageRefresh();
+};
 
 $("#btn-quiz").onclick = async () => {
   if (materialState.busy) return;
