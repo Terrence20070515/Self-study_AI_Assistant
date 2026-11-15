@@ -735,6 +735,17 @@ def covered_unit_keys(course_id: str) -> set:
         return {r["unit_key"] for r in rows}
 
 
+def coverage_counts(course_id: str) -> dict:
+    """每个知识点单元出过几道题。复用时优先挑出得少的 ——
+    实测有页被抽了 8 次全是同一个知识点，因为那份资料已经刷满、只能复用。"""
+    with _conn() as c:
+        rows = c.execute(
+            "SELECT unit_key, question_cnt FROM quiz_coverage WHERE course_id=?",
+            (course_id,),
+        ).fetchall()
+    return {r["unit_key"]: int(r["question_cnt"] or 0) for r in rows}
+
+
 def coverage_stats(course_id: str) -> dict:
     with _conn() as c:
         row = c.execute(

@@ -1512,7 +1512,11 @@ def generate_quiz(course_id: str, material_ids: list, num: int = 5, kind: str = 
     picked = random.sample(fresh, min(num, len(fresh))) if fresh else []
     if len(picked) < num:                       # 新的不够，从已覆盖里补齐题量
         rest = [u for u in units if u["unit_key"] in covered]
-        picked += random.sample(rest, min(num - len(picked), len(rest)))
+        # 复用时优先挑「出过题最少」的页，同样少的再随机打散 ——
+        # 不然已经刷满的那几页会被反复抽中（实测一页出了 8 道）。
+        cnt = store.coverage_counts(course_id)
+        rest.sort(key=lambda u: (cnt.get(u["unit_key"], 0), random.random()))
+        picked += rest[:num - len(picked)]
     if not picked:
         picked = random.sample(units, min(num, len(units)))
     random.shuffle(picked)

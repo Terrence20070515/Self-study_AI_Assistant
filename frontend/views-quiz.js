@@ -63,6 +63,11 @@ $("#btn-quiz").onclick = async () => {
       }),
     });
     startQuiz(r.questions || []);
+    // 范围内所有知识点都出过题时，这批全是复练 —— 得说一声，
+    // 否则用户会奇怪"怎么又是这几页"（实测有页被反复抽了 8 次）
+    if (r.units_fresh === 0 && r.units_total) {
+      toast(`这 ${r.units_total} 个知识点都出过题了，这批是复练`);
+    }
     loadCoverage();          // 出题会记台账，覆盖率要跟着动
   } catch (err) {
     box.innerHTML = `<div class="quiz-empty">${esc(err.message)}</div>`;
