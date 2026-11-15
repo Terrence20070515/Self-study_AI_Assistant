@@ -265,6 +265,7 @@ async function openCourse(id) {
     : [GROUP_LABEL[c.course_group] || "专业课", c.semester, `${c.material_count} 份资料`].filter(Boolean).join(" · ");
   $("#btn-clear-chat").classList.toggle("hidden", isUnfiled);
   $("#btn-edit-course").classList.toggle("hidden", isUnfiled);
+  $("#btn-course-quiz").classList.toggle("hidden", isUnfiled);   // 未分类不出题
   // 未分类只是中转区：不需要 HandBook 和互动学习，只留资料库
   $("#tab-bar").classList.toggle("hidden", isUnfiled);
   showView("course");
@@ -279,7 +280,7 @@ function switchTab(tab) {
   $("#panel-materials").classList.toggle("hidden", tab !== "materials");
   $("#panel-study").classList.toggle("hidden", tab !== "study");
   $("#panel-handbook").classList.toggle("hidden", tab !== "handbook");
-  if (tab === "study") { renderQuizScope(); loadCoverage(); }
+  // 「互动学习」只剩问答；出题与覆盖率已移到独立的 AI 出题页（views-quizpage.js）
   if (tab === "handbook") renderHandbook();
 }
 document.querySelectorAll(".tab").forEach(t => t.onclick = () => switchTab(t.dataset.tab));
@@ -291,7 +292,8 @@ async function loadMaterials() {
   if (materialState.search) qs.set("q", materialState.search);
   materialState.list = await api(`/api/courses/${courseState.currentId}/materials?${qs}`);
   renderMaterials();
-  renderQuizScope();
+  // 出题范围列表不在这里刷 —— 它已搬到独立的 AI 出题页，
+  // 由 views-quizpage.loadQuizPage() 用自己的资料列表渲染
   refreshOrganizeBtns();
 }
 

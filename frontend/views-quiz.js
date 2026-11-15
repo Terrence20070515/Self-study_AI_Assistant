@@ -2,8 +2,13 @@
 // ---------- 出题 ----------
 $("#btn-toggle-quiz-scope").onclick = () => $("#quiz-scope").classList.toggle("hidden");
 
+// 出题是独立页面，有自己的课程上下文：从侧栏「AI 出题」进来时，
+// courseState.currentId 可能是空的，也可能停在别的课上，不能直接复用。
+function quizCourseId() { return quizState.courseId || courseState.currentId || null; }
+function quizMaterials() { return quizState.materials || []; }
+
 function quizCandidates() {
-  return materialState.list.filter(m => m.status === "ready" && (!quizState.scopeTag || m.tag === quizState.scopeTag));
+  return quizMaterials().filter(m => m.status === "ready" && (!quizState.scopeTag || m.tag === quizState.scopeTag));
 }
 
 function renderQuizScope() {
@@ -72,7 +77,7 @@ $("#btn-quiz").onclick = async () => {
   box.innerHTML = `<div class="quiz-empty">正在基于所选 ${ids.length} 份资料出题…</div>`;
   try {
     const before = await loadCoverage();   // 出题前记一次覆盖数，出完好对比增量
-    const r = await api(`/api/courses/${courseState.currentId}/quiz`, {
+    const r = await api(`/api/courses/${quizCourseId()}/quiz`, {
       method: "POST", headers: { "Content-Type": "application/json" },
       body: JSON.stringify({
         material_ids: ids,
@@ -329,7 +334,9 @@ function optFull(q, letter) {
 }
 
 async function askAboutQuestion(q, pick) {
-  switchTab("study");
+  // 出题是独立页面，答疑的落点必须是「那门课的互动学习」：
+  // 只调 switchTab 会停在出题页（study 面板根本不在这个视图里）
+  await openCourseChat(quizCourseId());
   const ref = (q.refs || [])[0];
   const src = ref ? `（出自《${ref.orig_name}》第 ${ref.page} 页）` : "";
   const brief = q.question.length > 34 ? q.question.slice(0, 34) + "…" : q.question;
@@ -393,7 +400,7 @@ async function loadWrongQuiz() {
   renderQuizBar();
   box.innerHTML = `<div class="quiz-empty">正在取出错题…</div>`;
   try {
-    const r = await api(`/api/courses/${courseState.currentId}/quiz/wrong`);
+    const r = await api(`/api/courses/${quizCourseId()}/quiz/wrong`);
     if (!r.questions?.length) {
       box.innerHTML = `<div class="quiz-empty">错题已经清空了，这门课暂时没有要重练的题</div>`;
       return;
@@ -422,9 +429,9 @@ function coverageQuery(ids) { return ids.length ? `?material_ids=${ids.join(",")
 // 后端 quiz_stats 早就有这些数，之前前端只显示「本轮」，看不到总量。
 async function loadQuizStats() {
   const el = $("#quiz-progress");
-  if (!el || !courseState.currentId) return;
+  if (!el || !quizCourseId()) return;
   try {
-    const s = await api(`/api/courses/${courseState.currentId}/quiz/stats`);
+    const s = await api(`/api/courses/${quizCourseId()}/quiz/stats`);
     if (!s || !s.questions) { el.textContent = ""; return; }
     const acc = (s.accuracy === null || s.accuracy === undefined) ? "—" : s.accuracy + "%";
     el.innerHTML = `出题 <b>${s.questions}</b> · 已做 <b>${s.answered}</b>`
@@ -443,7 +450,7 @@ async function loadCoverage() {
   let scopeIds = [];
   try {
     scopeIds = coverageScopeIds();
-    cov = await api(`/api/courses/${courseState.currentId}/quiz/coverage${coverageQuery(scopeIds)}`);
+    cov = await api(`/api/courses/${quizCourseId()}/quiz/coverage${coverageQuery(scopeIds)}`);
   } catch (e) {
     return null;
   }
@@ -453,7 +460,7 @@ async function loadCoverage() {
   $("#cov-pct").textContent = cov.percent + "%";
   // 必须写明统计的是哪些资料 —— 出题要先勾选，勾了之后分母就只剩那几份，
   // 百分比会突然跳高，不标注的话很像「刷完了」，其实只是范围变小了。
-  const readyCount = materialState.list.filter(m => m.status === "ready").length;
+  const readyCount = quizMaterials().filter(m => m.status === "ready").length;
   const scopeText = scopeIds.length
     ? `　统计范围：已选 ${scopeIds.length} 份`
     : `　统计范围：全部 ${readyCount} 份`;

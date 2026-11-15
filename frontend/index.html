@@ -4,7 +4,7 @@
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
 <title>Self-Learning Space</title>
-<link rel="stylesheet" href="main.css?v=20261115i">
+<link rel="stylesheet" href="main.css?v=20261115j">
 </head>
 <body>
 <div class="layout">
@@ -16,6 +16,7 @@
     <nav id="course-list" class="course-list"></nav>
     <div class="sidebar-footer">
       <button id="btn-import" class="btn btn-ghost btn-block">批量导入</button>
+      <button id="btn-quiz-page" class="btn btn-ghost btn-block">AI 出题</button>
       <button id="btn-grades" class="btn btn-ghost btn-block">均分计算</button>
       <button id="btn-library" class="btn btn-ghost btn-block">资料总库</button>
       <button id="btn-todos" class="btn btn-ghost btn-block">待办事项</button>
@@ -45,6 +46,7 @@
             <div id="dash-unfiled" class="dash-alert hidden"></div>
             <div class="dash-nav">
               <button id="dash-lib" class="btn btn-outline btn-sm">资料总库</button>
+              <button id="dash-quiz" class="btn btn-outline btn-sm">AI 出题</button>
               <button id="dash-grades" class="btn btn-outline btn-sm">均分计算</button>
             </div>
           </div>
@@ -123,6 +125,72 @@
       </section>
     </div>
 
+    <!-- AI 出题视图（与批量导入同级）：出题 / 做题 / 覆盖率都在这里，
+         和课程页的「互动学习」分开 —— 那边只负责提问解答 -->
+    <div id="quiz-view" class="course-view hidden">
+      <header class="course-header">
+        <div>
+          <h1>AI 出题</h1>
+          <div class="course-sub">选课程 → 选资料范围 → 出题；作答判分、错题重练、知识点覆盖都在这里</div>
+        </div>
+        <div class="course-actions">
+          <select id="quiz-course-select" class="input quiz-course-pick" title="选择要出题的课程"></select>
+        </div>
+      </header>
+        <!-- 练习：出题 → 作答判分 → 错题重练（学习闭环的后半段） -->
+        <div class="panel">
+          <div class="panel-head">
+            <h3>出题</h3>
+            <div class="panel-tools">
+              <select id="quiz-num" class="input input-sm" title="一次出几道，默认 5">
+                <option value="5" selected>5 题</option>
+                <option value="10">10 题</option>
+                <option value="15">15 题</option>
+                <option value="20">20 题</option>
+              </select>
+              <select id="quiz-kind" class="input input-sm">
+                <option value="choice">仅选择题</option>
+                <option value="mixed">混合题型</option>
+                <option value="short">仅简答题</option>
+              </select>
+              <select id="quiz-level" class="input input-sm" title="基础＝确认概念懂了；标准＝典型情形会用；挑战＝排查与推理">
+                <option value="basic">基础</option>
+                <option value="standard" selected>标准</option>
+                <option value="challenge">挑战</option>
+              </select>
+              <button id="btn-toggle-quiz-scope" class="btn btn-outline btn-sm">选择范围</button>
+              <button id="btn-quiz-wrong" class="btn btn-outline btn-sm">错题重练</button>
+              <button id="btn-quiz" class="btn btn-primary btn-sm">开始练习</button>
+            </div>
+          </div>
+          <div id="quiz-progress" class="quiz-progress"></div>
+          <div id="quiz-scope" class="quiz-scope hidden">
+            <div class="tag-filter" id="quiz-tag-filter">
+              <button class="chip active" data-tag="">全部</button>
+            </div>
+            <div id="quiz-material-list" class="quiz-material-list"></div>
+            <div class="quiz-scope-actions">
+              <button id="btn-quiz-all" class="btn btn-ghost btn-sm">全选</button>
+              <button id="btn-quiz-none" class="btn btn-ghost btn-sm">清空</button>
+              <span class="muted" id="quiz-scope-count"></span>
+            </div>
+          </div>
+          <div id="quiz-coverage" class="quiz-coverage hidden">
+            <div class="cov-row">
+              <span class="cov-label">知识点覆盖</span>
+              <span class="cov-track"><i id="cov-fill"></i></span>
+              <span class="cov-pct" id="cov-pct">0%</span>
+              <button id="btn-cov-detail" class="btn btn-ghost btn-sm">按资料明细</button>
+            </div>
+            <div class="cov-nums" id="cov-nums"></div>
+            <div id="cov-detail" class="cov-detail hidden"></div>
+            <div id="cov-progress" class="cov-progress hidden"></div>
+          </div>
+          <div id="quiz-bar" class="quiz-bar hidden"></div>
+          <div id="quiz-result" class="quiz-result"></div>
+        </div>
+    </div>
+
     <!-- 课程视图 -->
     <div id="course-view" class="course-view hidden">
       <header class="course-header">
@@ -131,6 +199,7 @@
           <div id="course-sub" class="course-sub"></div>
         </div>
         <div class="course-actions">
+          <button id="btn-course-quiz" class="btn btn-outline" title="用这门课的资料出题">出题</button>
           <button id="btn-edit-course" class="btn btn-ghost">编辑</button>
           <button id="btn-clear-chat" class="btn btn-ghost">清空对话</button>
         </div>
@@ -192,58 +261,6 @@
 
       <!-- 互动学习 -->
       <section id="panel-study" class="tab-panel hidden">
-        <!-- 练习：出题 → 作答判分 → 错题重练（学习闭环的后半段） -->
-        <div class="panel">
-          <div class="panel-head">
-            <h3>练习</h3>
-            <div class="panel-tools">
-              <select id="quiz-num" class="input input-sm" title="一次出几道，默认 5">
-                <option value="5" selected>5 题</option>
-                <option value="10">10 题</option>
-                <option value="15">15 题</option>
-                <option value="20">20 题</option>
-              </select>
-              <select id="quiz-kind" class="input input-sm">
-                <option value="choice">仅选择题</option>
-                <option value="mixed">混合题型</option>
-                <option value="short">仅简答题</option>
-              </select>
-              <select id="quiz-level" class="input input-sm" title="基础＝确认概念懂了；标准＝典型情形会用；挑战＝排查与推理">
-                <option value="basic">基础</option>
-                <option value="standard" selected>标准</option>
-                <option value="challenge">挑战</option>
-              </select>
-              <button id="btn-toggle-quiz-scope" class="btn btn-outline btn-sm">选择范围</button>
-              <button id="btn-quiz-wrong" class="btn btn-outline btn-sm">错题重练</button>
-              <button id="btn-quiz" class="btn btn-primary btn-sm">开始练习</button>
-            </div>
-          </div>
-          <div id="quiz-progress" class="quiz-progress"></div>
-          <div id="quiz-scope" class="quiz-scope hidden">
-            <div class="tag-filter" id="quiz-tag-filter">
-              <button class="chip active" data-tag="">全部</button>
-            </div>
-            <div id="quiz-material-list" class="quiz-material-list"></div>
-            <div class="quiz-scope-actions">
-              <button id="btn-quiz-all" class="btn btn-ghost btn-sm">全选</button>
-              <button id="btn-quiz-none" class="btn btn-ghost btn-sm">清空</button>
-              <span class="muted" id="quiz-scope-count"></span>
-            </div>
-          </div>
-          <div id="quiz-coverage" class="quiz-coverage hidden">
-            <div class="cov-row">
-              <span class="cov-label">知识点覆盖</span>
-              <span class="cov-track"><i id="cov-fill"></i></span>
-              <span class="cov-pct" id="cov-pct">0%</span>
-              <button id="btn-cov-detail" class="btn btn-ghost btn-sm">按资料明细</button>
-            </div>
-            <div class="cov-nums" id="cov-nums"></div>
-            <div id="cov-detail" class="cov-detail hidden"></div>
-            <div id="cov-progress" class="cov-progress hidden"></div>
-          </div>
-          <div id="quiz-bar" class="quiz-bar hidden"></div>
-          <div id="quiz-result" class="quiz-result"></div>
-        </div>
         <!-- 聊天 -->
         <div class="panel panel-chat">
           <div id="chat-log" class="chat-log">
@@ -586,11 +603,12 @@
     }, 3000);
   });
 </script>
-<script src="core.js?v=20261115i"></script>
-  <script src="views-home.js?v=20261115i"></script>
-  <script src="views-course.js?v=20261115i"></script>
-  <script src="views-quiz.js?v=20261115i"></script>
-  <script src="views-tools.js?v=20261115i"></script>
-  <script src="main.js?v=20261115i"></script>
+<script src="core.js?v=20261115j"></script>
+  <script src="views-home.js?v=20261115j"></script>
+  <script src="views-course.js?v=20261115j"></script>
+  <script src="views-quiz.js?v=20261115j"></script>
+  <script src="views-quizpage.js?v=20261115j"></script>
+  <script src="views-tools.js?v=20261115j"></script>
+  <script src="main.js?v=20261115j"></script>
 </body>
 </html>

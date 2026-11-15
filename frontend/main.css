@@ -135,6 +135,8 @@ label.btn { display: inline-flex; align-items: center; }
 }
 .input:focus { outline: none; border-color: var(--accent); }
 .input-sm { padding: 5px 10px; font-size: 12px; width: 180px; }
+/* 出题页的课程选择：.input 默认 width:100%，放在 flex 操作区里会撑满 */
+.quiz-course-pick { width: 280px; }
 
 /* 主区 */
 .main { flex: 1; overflow-y: auto; padding: 24px 28px; }

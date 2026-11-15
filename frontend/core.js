@@ -85,7 +85,10 @@ const materialState = {
   list: [], tag: "", search: "",
   busy: false, editMode: false, selected: new Set(),
 };
-const quizState = { scopeTag: "", selected: new Set(), session: null };
+// 出题页独立于课程页，所以自带课程上下文与资料列表
+const quizState = {
+  courseId: null, materials: [], scopeTag: "", selected: new Set(), session: null,
+};
 const libraryState = {
   selected: new Set(), tag: "", search: "", editMode: false,
 };
@@ -222,6 +225,7 @@ document.querySelectorAll("[data-close]").forEach(b =>
 const VIEW_SELECTORS = {
   home: "#home-view", course: "#course-view", recycle: "#recycle-view",
   grade: "#grade-view", todo: "#todo-view", library: "#library-view", import: "#import-view",
+  quiz: "#quiz-view",
 };
 
 function showView(name) {
