@@ -1214,6 +1214,15 @@ def _unit_keys(material_id: str, page: int, chars: int) -> list:
     return [f"{material_id}#p{page}#{k}" for k in range(n)]
 
 
+def _page_is_meta(chars: int, head: str) -> bool:
+    """这一页是不是封面/目录（不出题、也不计入覆盖率分母）。
+
+    轻量路径只有页首采样，必须截到同一长度上限再判 ——
+    head 是多块拼接的，可能超过 600 字，_is_meta_page 会因长度检查直接放行。
+    """
+    return chars <= _META_PAGE_MAX_CHARS and _is_meta_page((head or "")[:_META_PAGE_MAX_CHARS])
+
+
 def unit_keys_for(material_ids: list) -> list:
     """范围内全部知识点单元的 key。不读正文，覆盖率统计走这条轻量路径。
 
@@ -1223,10 +1232,7 @@ def unit_keys_for(material_ids: list) -> list:
     """
     keys = []
     for material_id, page, chars, head in store.chunk_sizes_for_materials(material_ids):
-        # head 是多块拼接的（每块取前 320 字），可能超过 600 字上限，
-        # 导致 _is_meta_page 因长度检查直接放行 → 分母比出题范围多几个。
-        # 先截到同一上限，两条路径的判定才完全一致。
-        if chars <= _META_PAGE_MAX_CHARS and _is_meta_page(head[:_META_PAGE_MAX_CHARS]):
+        if _page_is_meta(chars, head):
             continue
         keys.extend(_unit_keys(material_id, page, chars))
     return keys
@@ -1568,7 +1574,9 @@ def coverage_report(course_id: str, material_ids: list = None,
 
     per_mat_total: dict[str, int] = {}
     total = 0
-    for mid, page, chars in store.chunk_sizes_for_materials(material_ids):
+    for mid, page, chars, head in store.chunk_sizes_for_materials(material_ids):
+        if _page_is_meta(chars, head):
+            continue          # 与 unit_keys_for 同一口径，否则两个接口的覆盖率对不上
         n = len(_unit_keys(mid, page, chars))
         if not n:
             continue
