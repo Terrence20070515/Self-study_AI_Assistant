@@ -53,6 +53,37 @@ def embed_texts(texts: list[str]) -> np.ndarray:
     return vecs / norm
 
 
+# ---------- 文本清洗 ----------
+# 课件页脚常有联系方式、参考链接、教学系统地址。这些不会被考，却会：
+#   1) 占掉检索 top_k 的名额（一整页 URL 的得分和知识点差不多）
+#   2) 被模型当成素材，出「这个链接指向哪里」这种题
+# 但不能一刀切删掉所有 URL —— Web/网络课的正文本来就在讲 URL 结构。
+# 所以只删「整行基本就是邮箱/网址」的行（页脚特征），正文里提到的保留。
+_URL_RE = re.compile(r"https?://\S+|www\.[\w.-]+\.\w{2,}\S*", re.I)
+_EMAIL_RE = re.compile(r"[\w.+-]+@[\w-]+\.[\w.-]+")
+_PHONE_RE = re.compile(r"\+?\d[\d\s\-()]{7,}\d")
+
+
+def clean_noise(text: str) -> str:
+    kept = []
+    for line in (text or "").splitlines():
+        s = line.strip()
+        if not s:
+            continue
+        has_noise = bool(_URL_RE.search(s) or _EMAIL_RE.search(s))
+        leftover = _EMAIL_RE.sub("", _URL_RE.sub("", s))
+        if has_noise:                       # 联系方式行常带电话，一并算作"没内容"
+            leftover = _PHONE_RE.sub("", leftover)
+        leftover = leftover.strip(" ·•|,;，、—-()[]:")
+        # 只删「含网址/邮箱、且去掉后剩不下什么」的行（如 "Email: a@b.com"）。
+        # 阈值 20：正文里提到 URL 的整句（"See https://… for the full paper"）
+        # 去掉链接后还剩 20+ 字，会保留。
+        if has_noise and len(leftover) < 20:
+            continue
+        kept.append(line)
+    return "\n".join(kept)
+
+
 # ---------- PDF 处理 ----------
 
 def parse_pdf(path: str) -> list[tuple[int, str]]:
@@ -60,7 +91,7 @@ def parse_pdf(path: str) -> list[tuple[int, str]]:
     pages = []
     with fitz.open(path) as doc:
         for i, page in enumerate(doc):
-            text = page.get_text("text").strip()
+            text = clean_noise(page.get_text("text").strip())
             if len(text) >= 20:
                 pages.append((i + 1, text))
     return pages
@@ -109,19 +140,21 @@ def chunk_pages(pages: list[tuple[int, str]], size: int = CHUNK_SIZE, overlap: i
 # ---------- PDF / DOCX 处理 ----------
 
 def parse_docx(path: str) -> list[str]:
-    """提取 docx 的段落和表格文本块。"""
+    """提取 docx 的段落和表格文本块（顺带滤掉纯网址/邮箱行）。"""
     import docx
     d = docx.Document(path)
     blocks = []
     for para in d.paragraphs:
-        t = para.text.strip()
+        t = clean_noise(para.text.strip())
         if t:
             blocks.append(t)
     for table in d.tables:
         for row in table.rows:
             cells = [c.text.strip() for c in row.cells if c.text.strip()]
             if cells:
-                blocks.append(" | ".join(cells))
+                line = clean_noise(" | ".join(cells))
+                if line:
+                    blocks.append(line)
     return blocks
 
 
@@ -1182,9 +1215,19 @@ def _unit_keys(material_id: str, page: int, chars: int) -> list:
 
 
 def unit_keys_for(material_ids: list) -> list:
-    """范围内全部知识点单元的 key。不读正文，覆盖率统计走这条轻量路径。"""
+    """范围内全部知识点单元的 key。不读正文，覆盖率统计走这条轻量路径。
+
+    必须和 build_knowledge_units 用**同一套过滤**：封面/目录页在那里被跳过，
+    这里也得跳过，否则分母里混进几十个永远不会出题的页，
+    覆盖率就永远到不了 100%（实测 SOE101 天花板只有 93%）。
+    """
     keys = []
-    for material_id, page, chars in store.chunk_sizes_for_materials(material_ids):
+    for material_id, page, chars, head in store.chunk_sizes_for_materials(material_ids):
+        # head 是多块拼接的（每块取前 320 字），可能超过 600 字上限，
+        # 导致 _is_meta_page 因长度检查直接放行 → 分母比出题范围多几个。
+        # 先截到同一上限，两条路径的判定才完全一致。
+        if chars <= _META_PAGE_MAX_CHARS and _is_meta_page(head[:_META_PAGE_MAX_CHARS]):
+            continue
         keys.extend(_unit_keys(material_id, page, chars))
     return keys
 

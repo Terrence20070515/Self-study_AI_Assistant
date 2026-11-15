@@ -962,11 +962,12 @@ def chunks_for_materials(material_ids: list[str]):
 
 
 def chunk_sizes_for_materials(material_ids: list[str]):
-    """按 (资料, 页) 聚合出字数，**不读正文**。
+    """按 (资料, 页) 聚合出字数 + 页首文本。
 
-    覆盖率统计只需要知道每页多大（据此算拆成几个知识点），不需要正文，
-    所以走这条轻量查询 —— 全库上万块时，读不回文本的差别很明显。
-    返回 [(material_id, page, chars), ...]
+    覆盖率分母走这条轻量查询（不把正文整段拉回来），但需要 head 判断
+    「这页是不是封面/目录」—— 那类页不出题，也不能计入分母，
+    否则覆盖率天花板永远到不了 100%。
+    返回 [(material_id, page, chars, head), ...]
     """
     ids = [m for m in (material_ids or []) if isinstance(m, str)]
     if not ids:
@@ -974,14 +975,17 @@ def chunk_sizes_for_materials(material_ids: list[str]):
     marks = ",".join("?" * len(ids))
     with _conn() as c:
         rows = c.execute(
-            f"""SELECT ch.material_id, ch.page, COALESCE(SUM(LENGTH(ch.text)),0) AS chars
+            f"""SELECT ch.material_id, ch.page,
+                       COALESCE(SUM(LENGTH(ch.text)),0) AS chars,
+                       COALESCE(GROUP_CONCAT(SUBSTR(ch.text,1,600),' '),'') AS head
                 FROM chunks ch JOIN materials m ON m.id = ch.material_id
                 WHERE ch.material_id IN ({marks}) AND m.deleted=0
                 GROUP BY ch.material_id, ch.page
                 ORDER BY ch.material_id, ch.page""",
             ids,
         ).fetchall()
-        return [(r["material_id"], int(r["page"]), int(r["chars"])) for r in rows]
+        return [(r["material_id"], int(r["page"]), int(r["chars"]), r["head"] or "")
+                for r in rows]
 
 
 # ---------- messages ----------

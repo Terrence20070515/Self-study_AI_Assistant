@@ -333,7 +333,25 @@ let covTimer = null;
 function coverageScopeIds() { return [...quizState.selected]; }
 function coverageQuery(ids) { return ids.length ? `?material_ids=${ids.join(",")}` : ""; }
 
+// 累计复习进度：出题 N · 已做 M · 正确率 X% · 待重练 K
+// 后端 quiz_stats 早就有这些数，之前前端只显示「本轮」，看不到总量。
+async function loadQuizStats() {
+  const el = $("#quiz-progress");
+  if (!el || !courseState.currentId) return;
+  try {
+    const s = await api(`/api/courses/${courseState.currentId}/quiz/stats`);
+    if (!s || !s.questions) { el.textContent = ""; return; }
+    const acc = (s.accuracy === null || s.accuracy === undefined) ? "—" : s.accuracy + "%";
+    el.innerHTML = `出题 <b>${s.questions}</b> · 已做 <b>${s.answered}</b>`
+      + ` · 正确率 <b>${acc}</b>`
+      + (s.wrong ? ` · 待重练 <b>${s.wrong}</b>` : "");
+  } catch (e) {
+    el.textContent = "";
+  }
+}
+
 async function loadCoverage() {
+  loadQuizStats();          // 和覆盖率一起刷，不阻塞
   const box = $("#quiz-coverage");
   if (!box) return null;
   let cov;

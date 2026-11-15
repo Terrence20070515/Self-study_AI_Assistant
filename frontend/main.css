@@ -303,6 +303,13 @@ label.btn { display: inline-flex; align-items: center; }
 }
 .quiz-bar b { color: var(--text); font-weight: 600; }
 
+/* 累计进度：单独一行，跟在练习工具栏下面 */
+.quiz-progress {
+  padding: 0 16px 8px; font-size: 11.5px; color: var(--text-2);
+  letter-spacing: .2px; white-space: nowrap;
+}
+.quiz-progress:empty { display: none; }
+.quiz-progress b { color: var(--text); font-weight: 600; }
 .quiz-card { border: 1px solid var(--border); border-radius: 8px; padding: 12px 14px; }
 .quiz-card .q-title { font-weight: 600; line-height: 1.6; }
 /* 难度标签：模型按「答对需要想几步」自评（easy/medium/hard），与出题档位是两回事 */
