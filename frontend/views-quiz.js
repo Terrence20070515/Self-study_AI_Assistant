@@ -83,6 +83,10 @@ function startQuiz(questions) {
   quizState.session = { total: questions.length, answered: 0, correct: 0 };
   renderQuiz(questions);
   renderQuizBar();
+  // 出完题直接带到题目区 —— 题目渲染在下方的 #quiz-result，
+  // 不滚的话点完「开始练习」还停在顶部，看着像没反应（用户说的"出题藏着"）。
+  const box = $("#quiz-result");
+  if (box) setTimeout(() => box.scrollIntoView({ block: "start", behavior: "smooth" }), 60);
 }
 
 function renderQuizBar() {
@@ -97,6 +101,24 @@ function renderQuizBar() {
     `<span>对 <b>${s.correct}</b></span>` +
     `<span>错 <b>${s.answered - s.correct}</b></span>` +
     (acc === null ? "" : `<span>正确率 <b>${acc}%</b></span>`);
+  // 这批做完了 → 底部直接给下一批，不用滚回顶部再点「开始练习」
+  if (s.answered >= s.total) ensureNextBatch();
+}
+
+function ensureNextBatch() {
+  const box = $("#quiz-result");
+  if (!box || box.querySelector(".quiz-next")) return;
+  const wrap = document.createElement("div");
+  wrap.className = "quiz-next";
+  const tip = document.createElement("span");
+  tip.textContent = "这批做完了 · 继续下一批";
+  const btn = document.createElement("button");
+  btn.className = "btn btn-primary btn-sm";
+  btn.textContent = `再来 ${$("#quiz-num").value} 题`;
+  btn.onclick = () => $("#btn-quiz").click();
+  wrap.append(tip, btn);
+  box.appendChild(wrap);
+  wrap.scrollIntoView({ block: "nearest", behavior: "smooth" });
 }
 
 function renderQuiz(questions) {

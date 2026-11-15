@@ -310,6 +310,12 @@ label.btn { display: inline-flex; align-items: center; }
 }
 .quiz-progress:empty { display: none; }
 .quiz-progress b { color: var(--text); font-weight: 600; }
+/* 一批做完后的「继续下一批」 */
+.quiz-next {
+  display: flex; align-items: center; justify-content: center; gap: 12px;
+  margin: 16px 0 4px; padding: 14px; border: 1px dashed var(--border);
+  border-radius: 10px; font-size: 12px; color: var(--text-2);
+}
 .quiz-card { border: 1px solid var(--border); border-radius: 8px; padding: 12px 14px; }
 .quiz-card .q-title { font-weight: 600; line-height: 1.6; }
 /* 难度标签：模型按「答对需要想几步」自评（easy/medium/hard），与出题档位是两回事 */
