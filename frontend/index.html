@@ -4,7 +4,7 @@
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
 <title>Self-Learning Space</title>
-<link rel="stylesheet" href="main.css?v=20261115o">
+<link rel="stylesheet" href="main.css?v=20261115p">
 </head>
 <body>
 <div class="layout">
@@ -196,9 +196,7 @@
           <div id="course-sub" class="course-sub"></div>
         </div>
         <div class="course-actions">
-          <button id="btn-course-quiz" class="btn btn-outline" title="用这门课的资料出题">出题</button>
           <button id="btn-edit-course" class="btn btn-ghost">编辑</button>
-          <button id="btn-clear-chat" class="btn btn-ghost">清空对话</button>
         </div>
       </header>
 
@@ -260,6 +258,16 @@
       <section id="panel-study" class="tab-panel hidden">
         <!-- 聊天 -->
         <div class="panel panel-chat">
+          <!-- 快捷方式：出题 / 清空对话。只在问答面板里出现，
+               放抬头栏的话在资料库、HandBook 页也会看到，属于串台 -->
+          <div class="chat-shortcuts">
+            <button id="btn-course-quiz" class="chat-shortcut" title="用这门课的资料出题">
+              <b>出题</b><span>按本课资料生成一批练习</span>
+            </button>
+            <button id="btn-clear-chat" class="chat-shortcut" title="清空这门课的问答记录">
+              <b>清空对话</b><span>删除本课全部问答记录</span>
+            </button>
+          </div>
           <div id="chat-log" class="chat-log">
             <div class="chat-hint" id="chat-hint">提问会<strong>只在当前课程的资料范围内</strong>检索回答，并标注出处页码。</div>
           </div>
@@ -600,12 +608,12 @@
     }, 3000);
   });
 </script>
-<script src="core.js?v=20261115o"></script>
-  <script src="views-home.js?v=20261115o"></script>
-  <script src="views-course.js?v=20261115o"></script>
-  <script src="views-quiz.js?v=20261115o"></script>
-  <script src="views-quizpage.js?v=20261115o"></script>
-  <script src="views-tools.js?v=20261115o"></script>
-  <script src="main.js?v=20261115o"></script>
+<script src="core.js?v=20261115p"></script>
+  <script src="views-home.js?v=20261115p"></script>
+  <script src="views-course.js?v=20261115p"></script>
+  <script src="views-quiz.js?v=20261115p"></script>
+  <script src="views-quizpage.js?v=20261115p"></script>
+  <script src="views-tools.js?v=20261115p"></script>
+  <script src="main.js?v=20261115p"></script>
 </body>
 </html>
