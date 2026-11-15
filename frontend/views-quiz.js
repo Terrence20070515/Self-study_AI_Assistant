@@ -57,7 +57,7 @@ $("#btn-quiz").onclick = async () => {
       method: "POST", headers: { "Content-Type": "application/json" },
       body: JSON.stringify({
         material_ids: ids,
-        num: Number($("#quiz-num").value),
+        num: 5,                       // 固定一批 5 道，不再给题量选项
         kind: $("#quiz-kind").value,
         difficulty: $("#quiz-level").value,
       }),
@@ -119,7 +119,7 @@ function ensureNextBatch() {
   tip.textContent = "这批做完了 · 继续下一批";
   const btn = document.createElement("button");
   btn.className = "btn btn-primary btn-sm";
-  btn.textContent = `再来 ${$("#quiz-num").value} 题`;
+  btn.textContent = "再来 5 题";
   btn.onclick = () => $("#btn-quiz").click();
   wrap.append(tip, btn);
   box.appendChild(wrap);
@@ -422,87 +422,6 @@ $("#btn-cov-detail").onclick = async () => {
   $("#btn-cov-detail").textContent = open ? "收起明细" : "按资料明细";
   if (open) await loadCoverage();
 };
-
-$("#btn-quiz-full").onclick = async () => {
-  if (materialState.busy) return;
-  const ids = coverageScopeIds();
-  if (!ids.length) return toast("请先点「选择范围」勾选资料");
-  const cov = await loadCoverage();
-  if (!cov) return toast("拿不到覆盖情况，稍后再试");
-  if (!cov.pending) return toast("范围内所有知识点都已出过题");
-
-  const mins = Math.max(1, Math.round(cov.eta_seconds / 60));
-  const msg = [
-    `本轮处理 ${cov.this_run_batches} 批，预计 ${mins} 分钟，约新增 ${Math.min(cov.pending, cov.this_run_batches * 6)} 道题。`,
-    cov.truncated
-      ? `范围内还有 ${cov.pending} 个知识点未覆盖，一轮跑不完，之后可以再点一次继续。`
-      : "",
-    "",
-    "现在开始吗？开始后可以继续用界面，进度会显示在覆盖率下面。",
-  ].filter(Boolean).join("\n");
-  if (!confirm(msg)) return;
-
-  materialState.busy = true;
-  try {
-    const r = await api(`/api/courses/${courseState.currentId}/quiz/full`, {
-      method: "POST", headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({
-        material_ids: ids,
-        kind: $("#quiz-kind").value,
-        difficulty: $("#quiz-level").value,
-      }),
-    });
-    if (!r.started) {
-      toast(r.reason || "无需覆盖");
-      materialState.busy = false;
-      return;
-    }
-    startCovPolling();
-  } catch (e) {
-    toast("启动失败：" + e.message);
-    materialState.busy = false;
-  }
-};
-
-function startCovPolling() {
-  stopCovPolling();
-  $("#cov-progress").classList.remove("hidden");
-  const tick = async () => {
-    let r;
-    try {
-      const ids = coverageScopeIds();
-      r = await api(`/api/courses/${courseState.currentId}/quiz/full${coverageQuery(ids)}`);
-    } catch (e) {
-      stopCovPolling();
-      materialState.busy = false;
-      return;
-    }
-    const el = $("#cov-progress");
-    const job = r.job;
-    if (!job) { el.textContent = "任务已结束"; stopCovPolling(); materialState.busy = false; return; }
-    if (job.status === "running") {
-      el.textContent = `覆盖进行中：${job.done}/${job.total} 批，已新增 ${job.added} 道题`;
-    } else if (job.status === "ok") {
-      el.textContent = job.note || "完成";
-      stopCovPolling();
-      materialState.busy = false;
-      await loadCoverage();
-      return;
-    } else {
-      el.textContent = "覆盖失败：" + (job.error || "未知错误");
-      stopCovPolling();
-      materialState.busy = false;
-      return;
-    }
-    await loadCoverage();
-  };
-  tick();
-  covTimer = setInterval(tick, 3000);
-}
-
-function stopCovPolling() {
-  if (covTimer) { clearInterval(covTimer); covTimer = null; }
-}
 
 // ---------- 聊天 ----------
 // 「允许外部资料」开关：开启后跨课程检索 + 允许 AI 补充资料外知识。
