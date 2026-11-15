@@ -45,10 +45,9 @@ async function renderDashboard() {
     if (sub) sub.textContent = "部分数据加载失败：" + (e.message || e);
   }
 }
-$("#dash-lib").onclick = () => document.getElementById("btn-library").click();
-// 注意：均分计算 / 待办事项 的入口绑定放在 views-tools.js 里（那个文件才定义
-// openGrades / openTodos）。guard 的第二个参数在**绑定那一刻**就要求值，
-// 本文件先于 views-tools.js 加载，写在这里会立刻 ReferenceError，
+// 资料总库 / 均分计算 / 待办事项 的主页入口都绑在 views-tools.js 里（那里定义
+// openLibrary / openGrades / openTodos）。guard 的第二个参数在**绑定那一刻**
+// 就要求值，本文件先于 views-tools.js 加载，写在这里会立刻 ReferenceError，
 // 并让整份视图脚本后面全部不执行（表现成 QUOTES 的 TDZ 报错）。
 
 $("#btn-overview").onclick = guard("打开主页", showHome);

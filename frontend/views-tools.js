@@ -699,7 +699,10 @@ $("#imm-note-save").onclick = async () => {
 // ---------- 资料总库 ----------
 // 状态统一在 core.js 的 libraryState 里初始化，这里不再补字段
 
-$("#btn-library").onclick = guard("打开资料总库", () => {
+// 侧栏的「资料总库」已删，主页大按钮是唯一入口。
+// 绑在这里而不是 views-home.js：那个文件先加载，guard 的 fn 参数在绑定那一刻
+// 就要求值，跨文件引用后加载的函数会直接 ReferenceError（这个坑踩过一次）
+function openLibrary() {
   courseState.currentId = null;
   showView("library");
   libraryState.tag = ""; libraryState.search = ""; libraryState.editMode = false; libraryState.selected.clear();
@@ -711,7 +714,8 @@ $("#btn-library").onclick = guard("打开资料总库", () => {
   $("#lib-sel-all-wrap").classList.add("hidden");
   document.querySelectorAll("#lib-tag-filter .chip").forEach(c => c.classList.toggle("active", c.dataset.tag === ""));
   renderLibrary();
-});
+}
+$("#dash-lib").onclick = guard("打开资料总库", openLibrary);
 $("#btn-back-library").onclick = () => showHome();
 
 async function renderLibrary() {
