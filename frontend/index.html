@@ -4,7 +4,7 @@
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
 <title>Self-Learning Space</title>
-<link rel="stylesheet" href="main.css?v=20261115q">
+<link rel="stylesheet" href="main.css?v=20261115r">
 </head>
 <body>
 <div class="layout">
@@ -185,6 +185,11 @@
           </div>
           <div id="quiz-bar" class="quiz-bar hidden"></div>
           <div id="quiz-result" class="quiz-result"></div>
+        </div>
+        <!-- 页面底部的返回入口：出完题会滚到题目区，想回主页得先自己滚回顶部，
+             这里给一条直达的退路 -->
+        <div class="quiz-foot">
+          <button id="btn-quiz-home" class="btn btn-outline">← 返回最上层</button>
         </div>
     </div>
 
@@ -610,12 +615,12 @@
     }, 3000);
   });
 </script>
-<script src="core.js?v=20261115q"></script>
-  <script src="views-home.js?v=20261115q"></script>
-  <script src="views-course.js?v=20261115q"></script>
-  <script src="views-quiz.js?v=20261115q"></script>
-  <script src="views-quizpage.js?v=20261115q"></script>
-  <script src="views-tools.js?v=20261115q"></script>
-  <script src="main.js?v=20261115q"></script>
+<script src="core.js?v=20261115r"></script>
+  <script src="views-home.js?v=20261115r"></script>
+  <script src="views-course.js?v=20261115r"></script>
+  <script src="views-quiz.js?v=20261115r"></script>
+  <script src="views-quizpage.js?v=20261115r"></script>
+  <script src="views-tools.js?v=20261115r"></script>
+  <script src="main.js?v=20261115r"></script>
 </body>
 </html>
