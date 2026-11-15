@@ -355,9 +355,10 @@ async function loadCoverage() {
   const box = $("#quiz-coverage");
   if (!box) return null;
   let cov;
+  let scopeIds = [];
   try {
-    const ids = coverageScopeIds();
-    cov = await api(`/api/courses/${courseState.currentId}/quiz/coverage${coverageQuery(ids)}`);
+    scopeIds = coverageScopeIds();
+    cov = await api(`/api/courses/${courseState.currentId}/quiz/coverage${coverageQuery(scopeIds)}`);
   } catch (e) {
     return null;
   }
@@ -365,8 +366,15 @@ async function loadCoverage() {
   box.classList.remove("hidden");
   $("#cov-fill").style.width = cov.percent + "%";
   $("#cov-pct").textContent = cov.percent + "%";
+  // 必须写明统计的是哪些资料 —— 出题要先勾选，勾了之后分母就只剩那几份，
+  // 百分比会突然跳高，不标注的话很像「刷完了」，其实只是范围变小了。
+  const readyCount = materialState.list.filter(m => m.status === "ready").length;
+  const scopeText = scopeIds.length
+    ? `　统计范围：已选 ${scopeIds.length} 份`
+    : `　统计范围：全部 ${readyCount} 份`;
   $("#cov-nums").textContent = `已覆盖 ${cov.covered} / ${cov.total} 个知识点`
-    + (cov.pending ? `　未覆盖 ${cov.pending}` : "　范围已全部覆盖");
+    + (cov.pending ? `　未覆盖 ${cov.pending}` : "　范围已全部覆盖")
+    + scopeText;
   const det = $("#cov-detail");
   if (!det.classList.contains("hidden")) {
     det.innerHTML = cov.by_material.map(m => {
