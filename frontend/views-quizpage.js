@@ -80,8 +80,7 @@ async function openCourseChat(courseId) {
 }
 
 // ---------- 入口 ----------
-// 侧栏（与批量导入同级）
-$("#btn-quiz-page").onclick = guard("打开 AI 出题", () => openQuizPage());
+// 侧栏的「AI 出题」已删，主页是唯一入口（#dash-quiz）
 // 主页快捷方式
 $("#dash-quiz").onclick = guard("打开 AI 出题", () => openQuizPage());
 // 课程页右上角：带上当前课程直接进（省得再去下拉里找一遍）

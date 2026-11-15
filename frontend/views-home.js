@@ -46,7 +46,10 @@ async function renderDashboard() {
   }
 }
 $("#dash-lib").onclick = () => document.getElementById("btn-library").click();
-$("#dash-grades").onclick = () => document.getElementById("btn-grades").click();
+// 注意：均分计算 / 待办事项 的入口绑定放在 views-tools.js 里（那个文件才定义
+// openGrades / openTodos）。guard 的第二个参数在**绑定那一刻**就要求值，
+// 本文件先于 views-tools.js 加载，写在这里会立刻 ReferenceError，
+// 并让整份视图脚本后面全部不执行（表现成 QUOTES 的 TDZ 报错）。
 
 $("#btn-overview").onclick = guard("打开主页", showHome);
 $("#btn-import").onclick = guard("打开批量导入", () => { courseState.currentId = null; showView("import"); });
@@ -128,7 +131,7 @@ $("#home-todo-form").addEventListener("submit", guard("添加待办", async (e) 
   $("#home-todo-course").value = "";
   renderDashboard();
 }));
-$("#home-todo-go").onclick = guard("打开待办事项", () => document.getElementById("btn-todos").click());
+// #home-todo-go（全部管理）同理，绑在 views-tools.js 的 openTodos 旁边
 
 // ---------- 主页下半区：每日一句 ----------
 // 原创短句，不带署名（避免张冠李戴）；每次进主页换一句，且不与上一句重复

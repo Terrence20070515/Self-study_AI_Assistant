@@ -2,7 +2,14 @@
 // ---------- 均分计算 ----------
 const gradeEdit = new Set();  // 处于编辑状态的专业课 id
 
-$("#btn-grades").onclick = guard("打开均分计算", () => { courseState.currentId = null; showView("grade"); renderGrades(); });
+// 入口统一收到主页面板上，侧栏不再放这些按钮 —— 所以这里是具名函数，
+// 由主页的 #dash-grades 直接调用（以前是「点主页 → 转发点击侧栏按钮」）
+function openGrades() {
+  courseState.currentId = null;
+  showView("grade");
+  renderGrades();
+}
+$("#dash-grades").onclick = guard("打开均分计算", openGrades);
 $("#btn-back-grade").onclick = () => showHome();
 
 function totalOf(list) {
@@ -317,7 +324,12 @@ $("#hb-read").onclick = async () => {
 };
 
 // ---------- 待办事项 ----------
-$("#btn-todos").onclick = guard("打开待办事项", () => { courseState.currentId = null; showView("todo"); loadTodos(); });
+function openTodos() {
+  courseState.currentId = null;
+  showView("todo");
+  loadTodos();
+}
+$("#home-todo-go").onclick = guard("打开待办事项", openTodos);   // 主页「全部管理」
 $("#btn-back-todo").onclick = () => showHome();
 
 async function loadTodos() {
