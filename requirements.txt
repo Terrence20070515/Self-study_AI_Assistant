@@ -8,3 +8,5 @@ openai
 httpx
 python-dotenv
 pywebview
+beautifulsoup4
+lxml

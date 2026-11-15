@@ -11,6 +11,8 @@ import re
 import shutil
 import subprocess
 import threading
+import time
+import urllib.parse
 from typing import Iterator
 
 import fitz  # PyMuPDF
@@ -658,14 +660,168 @@ STRICT_SYSTEM = (
     "5. 用简体中文回答，条理清晰，适合学习复习场景。"
 )
 
-# 「允许外部资料」模式：可以结合自有知识，但必须与资料内容明确区分，且不得伪造引用编号
+# ---------- 联网检索 ----------
+# 「允许外部资料」= 真的去网上搜，不是跨课程检索（那是另一件事，且会污染 RAG 出处）。
+# 不依赖任何 API key：抓搜索结果页。
+# 源的选择是按实测定的：搜狗对中文问句最准；Bing 对中文长句常只匹配前几个字
+# （问「2024 巴黎奥运中国金牌数」会返回「感动中国颁奖」「2024 年日历」）；
+# DuckDuckGo 墙内连不通，等它超时纯属浪费，只作最后兜底。
+
+_SEARCH_UA = (
+    "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 "
+    "(KHTML, like Gecko) Chrome/124.0.0.0 Safari/537.36"
+)
+
+# 搜狗被限流后的冷却截止时间（epoch 秒）
+_sogou_block_until = 0.0
+
+
+def _search_sogou(query: str, limit: int, client: httpx.Client) -> list[dict]:
+    # 搜狗连续请求会返回「验证页」（~3.8KB、无结果块）。被限后冷却 2 分钟，
+    # 别每次提问都先去撞一次墙 —— 直接走兜底源，响应快得多。
+    global _sogou_block_until
+    if time.time() < _sogou_block_until:
+        raise RuntimeError("搜狗限流冷却中，跳过")
+    r = client.get("https://www.sogou.com/web", params={"query": query},
+                   headers={"User-Agent": _SEARCH_UA,
+                            "Referer": "https://www.sogou.com/",
+                            "Accept-Language": "zh-CN,zh;q=0.9,en;q=0.8"})
+    r.raise_for_status()
+    from bs4 import BeautifulSoup
+    soup = BeautifulSoup(r.text, "lxml")
+    out = []
+    for blk in soup.select("div.vrwrap")[: limit * 2]:
+        a = blk.select_one("h3 a")
+        if not a:
+            continue
+        href = (a.get("href") or "").strip()
+        if href.startswith("/"):
+            href = "https://www.sogou.com" + href     # 搜狗结果是站内跳转链接
+        if not href.startswith("http"):
+            continue
+        snip = None
+        for sel in (".fz-mid", ".str-text-info", ".space-txt", ".text-layout", ".str_info"):
+            el = blk.select_one(sel)
+            if el and el.get_text(strip=True):
+                snip = el
+                break
+        snippet = snip.get_text(" ", strip=True) if snip else ""
+        if not snippet:
+            # 聚合卡片/不同版式的摘要类名不固定，兜底取块内最长的段落；
+            # 再不行就整块文本去掉标题 —— 光有标题，模型判断不了相关性
+            ps = [p.get_text(" ", strip=True) for p in blk.select("p")]
+            ps = [p for p in ps if len(p) > 15]
+            if ps:
+                snippet = max(ps, key=len)
+            else:
+                title_txt = a.get_text(" ", strip=True)
+                snippet = blk.get_text(" ", strip=True).replace(title_txt, "", 1).strip()[:300]
+        out.append({
+            "title": a.get_text(" ", strip=True),
+            "url": href,
+            "snippet": snippet,
+        })
+        if len(out) >= limit:
+            break
+    if not out:
+        _sogou_block_until = time.time() + 120
+        raise RuntimeError(f"搜狗无结果（疑似验证页，响应 {len(r.text)} 字节），冷却 2 分钟")
+    return out
+
+
+def _search_ddg(query: str, limit: int, client: httpx.Client) -> list[dict]:
+    r = client.post("https://html.duckduckgo.com/html/", data={"q": query},
+                    headers={"User-Agent": _SEARCH_UA})
+    r.raise_for_status()
+    from bs4 import BeautifulSoup
+    soup = BeautifulSoup(r.text, "lxml")
+    out = []
+    for a in soup.select(".result__a")[: limit * 2]:
+        href = a.get("href") or ""
+        m = re.search(r"uddg=([^&]+)", href)
+        if m:
+            href = urllib.parse.unquote(m.group(1))
+        if not href.startswith("http"):
+            continue
+        parent = a.find_parent(class_="result")
+        snip = parent.select_one(".result__snippet") if parent else None
+        out.append({
+            "title": a.get_text(" ", strip=True),
+            "url": href,
+            "snippet": snip.get_text(" ", strip=True) if snip else "",
+        })
+        if len(out) >= limit:
+            break
+    return out
+
+
+def _search_bing(query: str, limit: int, client: httpx.Client) -> list[dict]:
+    r = client.get("https://cn.bing.com/search",
+                   params={"q": query, "ensearch": "0"},
+                   headers={"User-Agent": _SEARCH_UA,
+                            "Accept-Language": "zh-CN,zh;q=0.9,en;q=0.8"})
+    r.raise_for_status()
+    from bs4 import BeautifulSoup
+    soup = BeautifulSoup(r.text, "lxml")
+    out = []
+    for li in soup.select("li.b_algo")[:limit]:
+        a = li.select_one("h2 a")
+        if not a or not a.get("href"):
+            continue
+        p = li.select_one(".b_caption p") or li.select_one("p")
+        out.append({
+            "title": a.get_text(" ", strip=True),
+            "url": a.get("href"),
+            "snippet": p.get_text(" ", strip=True) if p else "",
+        })
+    return out
+
+
+def web_search(query: str, limit: int = 5, timeout: float = 12.0) -> list[dict]:
+    """联网检索，返回 [{title, url, snippet}]。失败返回 []（调用方负责降级）。"""
+    q = (query or "").strip()
+    if not q:
+        return []
+    # 这个问题本身是「讲讲这道题」，直接搜整句效果差；截掉问号后的口语部分
+    q = re.sub(r"\s+", " ", q)[:120]
+    with httpx.Client(timeout=timeout, follow_redirects=True) as client:
+        for fn, name in ((_search_sogou, "sogou"), (_search_bing, "bing"), (_search_ddg, "ddg")):
+            try:
+                got = fn(q, limit, client)
+            except Exception as e:                      # 网络/解析失败都换下一个源
+                print(f"[search] {name} 失败：{type(e).__name__}: {e}", flush=True)
+                continue
+            if got:
+                print(f"[search] 命中 {len(got)} 条（{name}）", flush=True)
+                return got
+    return []
+
+
+def _web_block(web: list) -> str:
+    """网页结果拼成上下文块：[W1] 标题 / 摘要 / URL。"""
+    lines = []
+    for i, w in enumerate(web, 1):
+        lines.append(f"[W{i}] {w.get('title', '').strip()}\n"
+                     f"{w.get('snippet', '').strip()}\n"
+                     f"{w.get('url', '').strip()}")
+    return "\n\n".join(lines)
+
+
+# 「允许外部资料」模式：本地资料 + 联网网页两路材料，必须区分来源、不得伪造引用
 EXTERNAL_SYSTEM = (
-    "你是一位严谨的课程学习助手。规则：\n"
-    "1. 优先依据提供的【资料片段】回答，引用资料时在句后标注来源编号，格式如 [1]、[2]。\n"
-    "2. 资料片段不足以回答时，可以结合你自己的知识补充，但必须让用户一眼看出哪些不是资料里的：\n"
-    "   先用一句话说明「资料中没有相关内容」，再以「以下是资料之外的补充」起头。\n"
-    "3. 补充内容严禁标注 [n] 来源编号，也不得声称它来自资料。\n"
-    "4. 用简体中文回答，条理清晰，适合学习复习场景。"
+    "你是一位严谨的课程学习助手。本次给你两路材料：\n"
+    "· 【课程资料片段】= 用户自己的课件，引用标 [1]、[2]…\n"
+    "· 【联网检索结果】= 网页搜索摘要，引用标 [W1]、[W2]…\n"
+    "规则：\n"
+    "1. 优先用课程资料回答；两路内容冲突时以课程资料为准，并明确指出冲突在哪。\n"
+    "2. 引用课程资料标 [n]，引用网页标 [Wn]，**两种编号绝不能混用**。\n"
+    "3. 用到网页内容时，行文里要说明这是网络来源（如「网上资料指出…」），"
+    "因为网络口径可能和老师讲的不一致。\n"
+    "4. 两路都不足以回答时，可以用你自己的知识补充，但必须先说明「资料和网络检索都没找到」，"
+    "再以「以下是资料之外的补充」起头；这部分不许标任何编号。\n"
+    "5. 回答末尾单独一行列出引用到的网页链接（标题 - URL），最多 5 条。\n"
+    "6. 严禁编造来源、页码或链接。\n"
+    "7. 用简体中文回答，条理清晰，适合学习复习场景。"
 )
 
 GUIDE_PROMPT = (
@@ -707,35 +863,35 @@ def stream_chat(course_id: str, question: str, mode: str = "ask",
                 allow_external: bool = False) -> Iterator[dict]:
     """流式生成回答。yield {"type": "citations"/"delta"/"done"/"error", ...}
 
-    allow_external=True（「允许外部资料」）：检索范围扩到全部课程，
-    且允许模型在资料不足时用自有知识补充，但必须在回答里把资料内外区分清楚。
+    allow_external=True（「允许外部资料」）：额外做**联网检索**，网页结果作为
+    第二路上下文喂给模型。本地检索仍然只限本课程 —— 跨课程检索是另一件事，
+    会把别的课的页码混进出处里，不在这里做。
     """
     try:
+        web = []
         if mode == "guide":
             results = _guide_context(course_id)
             user_content = GUIDE_PROMPT + "\n\n【资料片段】\n" + _build_context(results)
         else:
-            results = retrieve(course_id, question, cross_course=allow_external)
-            if not results:
-                if not allow_external:
-                    yield {
-                        "type": "delta",
-                        "text": "资料库中未找到足够相关的内容，无法回答该问题。\n\n"
-                                "（已尝试在当前课程的所有资料中检索，没有片段达到相关度要求。"
-                                "可以换个问法，或确认相关资料已上传到本课程；"
-                                "也可以打开「允许外部资料」再问一次。）",
-                    }
-                    yield {"type": "done", "citations": []}
-                    return
-                # 外部资料模式：检索为空也继续，让模型用自有知识回答
-                user_content = (
-                    "【资料片段】\n（本次检索没有找到相关片段）\n\n"
-                    f"【问题】\n{question}"
-                )
-            else:
-                user_content = (
-                    f"【资料片段】\n{_build_context(results)}\n\n【问题】\n{question}"
-                )
+            results = retrieve(course_id, question, cross_course=False)
+            if allow_external:
+                web = web_search(question)
+            if not results and not web and not allow_external:
+                yield {
+                    "type": "delta",
+                    "text": "资料库中未找到足够相关的内容，无法回答该问题。\n\n"
+                            "（已尝试在当前课程的所有资料中检索，没有片段达到相关度要求。"
+                            "可以换个问法，或确认相关资料已上传到本课程；"
+                            "也可以打开「允许外部资料」再问一次，我会联网搜。）",
+                }
+                yield {"type": "done", "citations": []}
+                return
+            blocks = []
+            blocks.append("【课程资料片段】\n" + (_build_context(results) if results
+                                                  else "（本次没有找到相关片段）"))
+            if web:
+                blocks.append("【联网检索结果｜网页，不是课程资料】\n" + _web_block(web))
+            user_content = "\n\n".join(blocks) + f"\n\n【问题】\n{question}"
 
         store.add_message(course_id, "user", question)
         messages = [

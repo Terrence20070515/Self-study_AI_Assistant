@@ -251,7 +251,20 @@ label.btn { display: inline-flex; align-items: center; }
 }
 .ext-switch input { accent-color: var(--accent); cursor: pointer; }
 .ext-switch.on { color: var(--accent); font-weight: 600; }
-.chat-form { display: flex; gap: 8px; padding: 12px; border-top: 1px solid var(--border); }
+.chat-form { display: flex; gap: 8px; padding: 12px; border-top: 1px solid var(--border); align-items: center; }
+/* 输入框吃掉剩余宽度；开关与发送键固定宽度 —— 否则发送键被挤成竖排「发/送」 */
+.chat-form .input { flex: 1; min-width: 0; }
+#btn-send { flex: 0 0 auto; white-space: nowrap; padding: 8px 18px; }
+/* 「允许外部资料」跟着输入框走：做成和输入框同高的小胶囊，紧贴发送键 */
+.chat-form .ext-switch {
+  flex: 0 0 auto; margin-left: 0; padding: 9px 12px;
+  border: 1px solid var(--border); border-radius: 8px;
+  background: var(--surface); font-size: 12px;
+}
+.chat-form .ext-switch:hover { border-color: var(--accent); }
+.chat-form .ext-switch.on {
+  border-color: var(--accent); background: var(--accent-weak); font-weight: 600;
+}
 .cursor { display: inline-block; width: 7px; height: 15px; background: var(--accent);
   vertical-align: text-bottom; animation: blink 1s steps(2) infinite; }
 @keyframes blink { 50% { opacity: 0; } }

@@ -495,9 +495,9 @@ $("#btn-cov-detail").onclick = async () => {
 // 注意：这段必须在 loadMessages 之前定义，提示是它每次重建的（不是 index.html 里那个）。
 const EXT_KEY = "sls-allow-external";
 const extBox = $("#chat-allow-external");
-const HINT_SELF = '提问会<strong>只在当前课程的资料范围内</strong>检索回答，并标注出处页码。';
-const HINT_ALL = '已开启「允许外部资料」：会在<strong>全部课程</strong>的资料里检索，'
-  + '跨课程的引用会用琥珀色标出课程代码。';
+const HINT_SELF = '提问会<strong>只在本课程的资料范围内</strong>检索回答，并标注出处页码。';
+const HINT_ALL = '已开启「允许外部资料」：除本课资料外，还会<strong>联网搜索网页</strong>，'
+  + '回答里会区分哪些来自网上、哪些来自你的课件。';
 
 function extHintHtml() {
   const cls = extBox.checked ? "chat-hint hint-foreign" : "chat-hint";

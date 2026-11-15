@@ -16,7 +16,8 @@ async def api_chat(cid: str, body: dict):
     course_or_404(cid)
     question = (body.get("question") or "").strip()
     mode = body.get("mode", "ask")
-    # 「允许外部资料」开关：开启后检索范围扩到全部课程，且允许模型用自有知识补充
+    # 「允许外部资料」开关：开启后额外做联网检索（网页结果作为第二路上下文）。
+    # 注意：它**不再**等于跨课程检索 —— 跨课程会把别的课的页码混进出处里。
     allow_external = bool(body.get("allow_external"))
     if mode == "ask" and not question:
         raise HTTPException(400, "问题不能为空")

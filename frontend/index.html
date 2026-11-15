@@ -4,7 +4,7 @@
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
 <title>Self-Learning Space</title>
-<link rel="stylesheet" href="main.css?v=20261115p">
+<link rel="stylesheet" href="main.css?v=20261115q">
 </head>
 <body>
 <div class="layout">
@@ -273,13 +273,15 @@
           </div>
           <div class="guide-bar">
             <button id="btn-guide" class="btn btn-outline btn-sm">AI 导学：基于本课资料列重点、推荐先问的问题</button>
-            <label class="ext-switch" id="ext-switch" title="开启后：检索范围扩到全部课程，并允许 AI 在资料不足时用自有知识补充（回答里会明确标出哪些不是资料里的内容）">
-              <input type="checkbox" id="chat-allow-external">
-              <span>允许外部资料</span>
-            </label>
           </div>
           <form id="chat-form" class="chat-form">
             <input id="chat-input" class="input" placeholder="输入你的问题，Enter 发送…" autocomplete="off">
+            <!-- 与输入框平行、紧贴发送键：这个开关管的是「这一次提问要不要联网」，
+                 放在输入框旁边才符合它的作用范围 -->
+            <label class="ext-switch" id="ext-switch" title="开启后除本课资料外，还会联网搜索网页。回答里会区分哪些来自网上、哪些来自你自己的课件">
+              <input type="checkbox" id="chat-allow-external">
+              <span>允许外部资料</span>
+            </label>
             <button type="submit" class="btn btn-primary" id="btn-send">发送</button>
           </form>
         </div>
@@ -608,12 +610,12 @@
     }, 3000);
   });
 </script>
-<script src="core.js?v=20261115p"></script>
-  <script src="views-home.js?v=20261115p"></script>
-  <script src="views-course.js?v=20261115p"></script>
-  <script src="views-quiz.js?v=20261115p"></script>
-  <script src="views-quizpage.js?v=20261115p"></script>
-  <script src="views-tools.js?v=20261115p"></script>
-  <script src="main.js?v=20261115p"></script>
+<script src="core.js?v=20261115q"></script>
+  <script src="views-home.js?v=20261115q"></script>
+  <script src="views-course.js?v=20261115q"></script>
+  <script src="views-quiz.js?v=20261115q"></script>
+  <script src="views-quizpage.js?v=20261115q"></script>
+  <script src="views-tools.js?v=20261115q"></script>
+  <script src="main.js?v=20261115q"></script>
 </body>
 </html>
