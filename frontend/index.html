@@ -4,7 +4,7 @@
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
 <title>Self-Learning Space</title>
-<link rel="stylesheet" href="main.css?v=20261115t">
+<link rel="stylesheet" href="main.css?v=20261115u">
 </head>
 <body>
 <div class="layout">
@@ -258,16 +258,6 @@
       <section id="panel-study" class="tab-panel hidden">
         <!-- 聊天 -->
         <div class="panel panel-chat">
-          <!-- 快捷方式：出题 / 清空对话。只在问答面板里出现，
-               放抬头栏的话在资料库、HandBook 页也会看到，属于串台 -->
-          <div class="chat-shortcuts">
-            <button id="btn-course-quiz" class="chat-shortcut" title="用这门课的资料出题">
-              <b>出题</b><span>按本课资料生成一批练习</span>
-            </button>
-            <button id="btn-clear-chat" class="chat-shortcut" title="清空这门课的问答记录">
-              <b>清空对话</b><span>删除本课全部问答记录</span>
-            </button>
-          </div>
           <div id="chat-log" class="chat-log">
             <div class="chat-hint" id="chat-hint">提问会<strong>只在当前课程的资料范围内</strong>检索回答，并标注出处页码。</div>
           </div>
@@ -284,6 +274,15 @@
             </label>
             <button type="submit" class="btn btn-primary" id="btn-send">发送</button>
           </form>
+          <!-- 快捷方式放到面板底部：顶部留给对话本身，不占阅读区 -->
+          <div class="chat-shortcuts">
+            <button id="btn-course-quiz" class="chat-shortcut" title="用这门课的资料出题">
+              <b>出题</b><span>按本课资料生成一批练习</span>
+            </button>
+            <button id="btn-clear-chat" class="chat-shortcut" title="清空这门课的问答记录">
+              <b>清空对话</b><span>删除本课全部问答记录</span>
+            </button>
+          </div>
         </div>
       </section>
     </div>
@@ -371,12 +370,11 @@
         <div id="recycle-list" class="material-list"></div>
       </section>
     </div>
-    <!-- 页面底部：返回最上层。内容不满一屏时贴在页面最下面，
-         而不是跟着内容悬在中间（问答页下方那块空白就是这个位置） -->
-    <div id="page-foot" class="page-foot hidden">
-      <button id="btn-back-top" class="btn btn-outline">← 返回最上层</button>
-    </div>
   </main>
+
+  <!-- 「返回最上层」= 一键滑到页面顶部。题目多时靠手滑太累，
+       所以做成悬浮按钮：滚过一屏才出现，不占版面 -->
+  <button id="btn-back-top" class="to-top" title="回到页面最上面">↑ 返回最上层</button>
 </div>
 
 <!-- 新建/编辑课程弹窗 -->
@@ -615,12 +613,12 @@
     }, 3000);
   });
 </script>
-<script src="core.js?v=20261115t"></script>
-  <script src="views-home.js?v=20261115t"></script>
-  <script src="views-course.js?v=20261115t"></script>
-  <script src="views-quiz.js?v=20261115t"></script>
-  <script src="views-quizpage.js?v=20261115t"></script>
-  <script src="views-tools.js?v=20261115t"></script>
-  <script src="main.js?v=20261115t"></script>
+<script src="core.js?v=20261115u"></script>
+  <script src="views-home.js?v=20261115u"></script>
+  <script src="views-course.js?v=20261115u"></script>
+  <script src="views-quiz.js?v=20261115u"></script>
+  <script src="views-quizpage.js?v=20261115u"></script>
+  <script src="views-tools.js?v=20261115u"></script>
+  <script src="main.js?v=20261115u"></script>
 </body>
 </html>

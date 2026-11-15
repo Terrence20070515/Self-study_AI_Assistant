@@ -139,12 +139,20 @@ label.btn { display: inline-flex; align-items: center; }
 .quiz-course-pick { width: 280px; }
 
 /* 主区 */
-.main { flex: 1; overflow-y: auto; padding: 24px 28px; display: flex; flex-direction: column; }
-/* 视图吃掉剩余高度：内容短时把底部返回条顶到页面最下面，内容长时正常撑开 */
-.course-view { flex: 1 0 auto; }
-/* 页面底部的「返回最上层」：非主页视图才显示。
-   flex 布局让它在内容不满一屏时贴到最下面，而不是跟着内容悬在中间 */
-.page-foot { flex: 0 0 auto; display: flex; justify-content: center; padding: 10px 0 0; }
+.main { flex: 1; overflow-y: auto; padding: 24px 28px; }
+/* 「返回最上层」悬浮按钮：滚过一屏才淡入，点一下平滑回顶。
+   固定定位，不占版面，也不影响任何视图的滚动高度 */
+.to-top {
+  position: fixed; right: 30px; bottom: 24px; z-index: 30;
+  padding: 9px 15px; border-radius: 999px; cursor: pointer;
+  font-size: 12.5px; color: var(--text); white-space: nowrap;
+  background: var(--surface); border: 1px solid var(--border);
+  box-shadow: 0 3px 12px rgba(0, 0, 0, .14);
+  opacity: 0; transform: translateY(6px); pointer-events: none;
+  transition: opacity .18s ease, transform .18s ease, border-color .18s ease;
+}
+.to-top.show { opacity: 1; transform: none; pointer-events: auto; }
+.to-top:hover { border-color: var(--accent); color: var(--accent); }
 
 .course-header { display: flex; justify-content: space-between; align-items: flex-start; margin-bottom: 18px; }
 .course-header h1 { font-size: 20px; font-weight: 700; }
@@ -190,10 +198,10 @@ label.btn { display: inline-flex; align-items: center; }
 
 /* 聊天 */
 .panel-chat { display: flex; flex-direction: column; padding: 0; overflow: hidden; }
-/* 问答面板顶部的两个快捷方式：出题 / 清空对话。
-   只在「互动学习」里出现，不从抬头栏放 —— 抬头栏是整门课共用的，
-   放上去在资料库、HandBook 页也会看到。 */
-.chat-shortcuts { display: flex; gap: 10px; padding: 14px 18px 0; }
+/* 问答面板底部的两个快捷方式：出题 / 清空对话。
+   只在这里出现（抬头栏是整门课共用的，放上去资料库/HanBook 也会显示）。
+   放在输入框下方，把顶部阅读区让给对话本身。 */
+.chat-shortcuts { display: flex; gap: 10px; padding: 0 12px 12px; }
 .chat-shortcut {
   display: flex; flex-direction: column; gap: 3px; align-items: flex-start;
   min-width: 170px; padding: 9px 15px; cursor: pointer;
