@@ -243,7 +243,17 @@ function showView(name) {
     const home = document.querySelector("#home-view");
     if (home) home.classList.remove("hidden");
   }
+  // 底部「返回最上层」按**实际显示**的视图决定（上面的兜底可能已回退主页）；
+  // 主页本身就是最上层，不该出现这个按钮
+  const shown = [...document.querySelectorAll(".course-view")]
+    .find(el => !el.classList.contains("hidden"));
+  const foot = document.querySelector("#page-foot");
+  if (foot) foot.classList.toggle("hidden", !shown || shown.id === "home-view");
 }
+
+// 底部返回条：所有非主页视图共用一条。showHome 定义在 views-home.js（后加载），
+// 用箭头函数延迟求值，绑定时不解析它
+$("#btn-back-top").onclick = () => showHome();
 
 // ---------- 流式问答：聊天面板 / 沉浸模式共用 ----------
 async function streamSSE(path, body, { onDelta, onDone, onError } = {}) {

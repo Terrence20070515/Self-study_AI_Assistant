@@ -85,8 +85,7 @@ async function openCourseChat(courseId) {
 $("#dash-quiz").onclick = guard("打开 AI 出题", () => openQuizPage());
 // 课程页右上角：带上当前课程直接进（省得再去下拉里找一遍）
 $("#btn-course-quiz").onclick = guard("去出题", () => openQuizPage(courseState.currentId));
-// 页面底部：返回最上层（主页）
-$("#btn-quiz-home").onclick = guard("返回最上层", () => showHome());
+// 底部的「返回最上层」是全局的，绑在 core.js 的 showView 旁边
 
 $("#quiz-course-select").onchange = guard("切换出题课程", async (e) => {
   quizState.courseId = e.target.value;
