@@ -659,6 +659,19 @@ label.btn { display: inline-flex; align-items: center; }
 .dash-card b { font-size: 18px; line-height: 1.2; }
 .dash-card span { font-size: 11px; }
 .dash-nav { display: flex; gap: 8px; margin: 0; }
+/* 主页三个入口：等宽大按钮。原来是 btn-sm 的小胶囊，缩在左上角没人看得见。
+   白底 + 细描边和面板同色，视觉上等于隐形，所以默认就给一层浅底。 */
+.dash-entry {
+  flex: 1; padding: 17px 16px; font-size: 15px; font-weight: 600;
+  letter-spacing: .5px; border-width: 1.5px; border-radius: 10px;
+  background: var(--accent-weak);
+  box-shadow: 0 1px 3px rgba(0, 0, 0, .08);
+  transition: background .15s ease, color .15s ease, border-color .15s ease;
+}
+.dash-entry:hover:not(:disabled) {
+  background: var(--accent); color: var(--on-accent); border-color: var(--accent);
+  box-shadow: 0 2px 8px rgba(0, 0, 0, .14);
+}
 
 /* ===== 番茄钟 ===== */
 .pomo {
