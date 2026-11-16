@@ -15,6 +15,46 @@
 
 ASM_TASKS = [
     {
+        "key": "stack_sort2",
+        "title": "栈顶两数降序",
+        "level": "easy",
+        "lab": "Assessment · 栈操作",
+        "brief": "栈顶已经压了两个数。用 pop 把它们取到 EAX / EBX，比较后按降序放回栈 "
+                 "—— 大的那个在栈顶（最后 push 的在顶上）。"
+                 "不交换和交换两条路径，最后都要走到那两条 push。",
+        "decls": "int a, b;\n// 进入 _asm 之前：push a / push b 已经把两个数放到栈顶",
+        "starter": "_asm {\n    \n}",
+        "hints": [
+            "pop 的顺序决定谁是谁：先 pop 到 EAX 拿到的是原来的栈顶。",
+            "cmp eax, ebx 之后，jge 表示「EAX 已经不小于 EBX」，那就跳过交换。",
+            "三个 mov 才能完成交换，需要一个第三个寄存器暂存 —— 直接用 ECX。",
+            "push 的顺序反过来想：谁想留在栈顶，谁就最后 push。",
+            "交换分支可以 jmp 汇合，但更省事的写法是让两条 push 放在标签之后，"
+            "两条路径自然都会经过。",
+        ],
+        "reference": (
+            "_asm {\n"
+            "    pop     eax               // 原来的栈顶\n"
+            "    pop     ebx               // 第二个\n"
+            "    cmp     eax, ebx\n"
+            "    jge     done              // eax >= ebx，已经是降序，不用换\n"
+            "    mov     ecx, eax          // 交换 eax / ebx\n"
+            "    mov     eax, ebx\n"
+            "    mov     ebx, ecx\n"
+            "done:\n"
+            "    push    ebx               // 小的先入栈\n"
+            "    push    eax               // 大的后入栈 -> 落在栈顶\n"
+            "}"
+        ),
+        "checklist": [
+            "pop 到 EAX / EBX 的顺序与题目一致",
+            "用有符号比较（cmp + jge / jl），不是 jae / jb",
+            "交换用三个 mov（或用 xchg 一步完成）",
+            "最后 push 的顺序：先小后大，大值落在栈顶",
+            "不管走不走交换分支，两条 push 都会执行到",
+        ],
+    },
+    {
         "key": "max3",
         "title": "三个数取最大",
         "level": "easy",
