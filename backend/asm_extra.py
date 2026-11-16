@@ -40,7 +40,7 @@ int negCount;""",
             ],
         }],
         "blanks": [
-            {"accept": ["jge notneg"],
+            {"accept": ["jge notNeg"],
              "hint": "大于等于 0 就跳过计数 —— 这样 0 也被排除了。",
              "why": "jge notNeg：有符号的「大于等于」。"
                     "用 jae 会把负数当成很大的无符号数，结果永远不计数。"},
@@ -254,4 +254,131 @@ int same;""",
         "note": "多出口控制流最容易漏的就是这条 jmp："
                 "「出错分支」放在正常路径后面，正常路径必须显式跳过它。",
     },
+    {
+        "key": "bubble_sort",
+        "title": "冒泡排序（升序）",
+        "level": "hard",
+        "source": "自编 · 排序（Assessment 同型）",
+        "brief": "把 data 的 6 个数按升序排好。相邻两个比，前面比后面大就交换，"
+                 "每跑一轮最大的会沉到末尾。注意：内层用 LOOP（ECX 是它的计数），"
+                 "外层不能再借 ECX，得用另一个寄存器自己 dec + 判零。",
+        "decls": """#define SIZE 6
+int data[SIZE] = { 5, 2, 9, 1, 7, 3 };""",
+        "parts": [{
+            "label": "",
+            "lines": [
+                "push    esi",
+                "push    ebx",
+                "mov     ebx, SIZE",
+                "outerLoop:",
+                "lea     esi, data",
+                "mov     ecx, ebx",
+                "dec     ecx",
+                "jz      done              // ecx 为 0 时 LOOP 会跑 42 亿次，先拦掉",
+                "innerLoop:",
+                "mov     eax, [esi]",
+                "mov     edx, [esi+4]",
+                BLANK,
+                BLANK,
+                "mov     [esi], edx",
+                BLANK,
+                "noSwap:",
+                "add     esi, 4",
+                "loop    innerLoop",
+                "dec     ebx",
+                BLANK,
+                "done:",
+                "pop     ebx",
+                "pop     esi",
+            ],
+        }],
+        "blanks": [
+            {"accept": ["cmp eax, edx"],
+             "hint": "比相邻两个：前面的在 EAX，后面的在 EDX。",
+             "why": "cmp eax, edx —— 升序要求「前面的 <= 后面的」，所以拿前比后。"},
+            {"accept": ["jle noSwap"],
+             "hint": "已经有序就不用换。",
+             "why": "jle noSwap：前 <= 后，顺序本来就对，跳过交换。"
+                    "写成 jge 就变成降序了；用 jbe（无符号）在负数时判错。"},
+            {"accept": ["mov [esi+4], eax"],
+             "hint": "把大的那个写到后一个位置。",
+             "why": "mov [esi+4], eax —— 交换的另一半。"
+                    "只写 mov [esi], edx 而不写这条，等于把后一个覆盖了两次。"},
+            {"accept": ["jnz outerLoop", "jg outerLoop"],
+             "hint": "外层还有剩余轮次就再来一遍。",
+             "why": "jnz outerLoop —— DEC 之后 EBX 不为 0 就继续下一轮。"
+                    "外层不能写 loop，因为 ECX 已经被内层占用了。"},
+        ],
+        "note": "双层循环的分工：ECX 交给内层 LOOP，外层用 EBX 自己 dec + jnz。"
+                "另外 dec ecx 之后一定要先 jz 拦一下 —— ECX 为 0 时 LOOP 会先减再判，"
+                "直接绕成 42 亿次（Lab03 那个坑）。",
+    },
+    {
+        "key": "selection_sort",
+        "title": "选择排序（升序）",
+        "level": "hard",
+        "source": "自编 · 排序（Assessment 同型）",
+        "brief": "每一轮在「还没排好的部分」里找出最小值，和这部分的第一位交换。"
+                 "用 EDI 记住最小值的位置，扫完再换，比冒泡的交换次数少得多。",
+        "decls": """#define SIZE 6
+int data[SIZE] = { 5, 2, 9, 1, 7, 3 };""",
+        "parts": [{
+            "label": "",
+            "lines": [
+                "push    esi",
+                "push    edi",
+                "push    ebx",
+                "lea     esi, data          // esi = 本轮待填的位置",
+                "mov     ebx, SIZE",
+                "outerLoop:",
+                "mov     edi, esi           // 先假定当前位就是最小",
+                "mov     eax, [esi]         // eax = 当前最小值",
+                "mov     ecx, ebx",
+                "dec     ecx",
+                "jz      placeIt            // 只剩一个元素，不用扫",
+                "mov     edx, esi           // edx = 扫描指针",
+                "scanLoop:",
+                "add     edx, 4",
+                BLANK,
+                BLANK,
+                "mov     eax, [edx]         // 更新最小值",
+                BLANK,
+                "notSmaller:",
+                "loop    scanLoop",
+                "placeIt:",
+                "mov     edx, [esi]         // 换位：把最小值放到本轮首位",
+                "mov     [esi], eax",
+                "mov     [edi], edx",
+                "add     esi, 4",
+                "dec     ebx",
+                BLANK,
+                "done:",
+                "pop     ebx",
+                "pop     edi",
+                "pop     esi",
+            ],
+        }],
+        "blanks": [
+            {"accept": ["cmp [edx], eax", "cmp dword ptr [edx], eax"],
+             "hint": "拿扫描到的元素和当前最小值比 —— 可以直接拿内存比寄存器。",
+             "why": "cmp [edx], eax —— 一条指令就能「取出内存里的值和寄存器比」，"
+                    "不需要先 mov 到第三个寄存器。若报 improper operand type，"
+                    "写成 cmp dword ptr [edx], eax。"},
+            {"accept": ["jge notSmaller"],
+             "hint": "不小于当前最小值，就不用更新。",
+             "why": "jge notSmaller：大于等于就跳过。"
+                    "注意是「没变小才跳过」，方向和冒泡那条相反。"},
+            {"accept": ["mov edi, edx"],
+             "hint": "光更新数值不够，还得记住它在哪。",
+             "why": "mov edi, edx —— 记录最小值的位置。"
+                    "这一条漏了会怎样：数值更新了，但最后交换时换的是老位置。"},
+            {"accept": ["jnz outerLoop", "jg outerLoop"],
+             "hint": "还有元素没排好就继续下一轮。",
+             "why": "jnz outerLoop —— 外层用 EBX 计数，不能用 loop（ECX 归内层）。"},
+        ],
+        "note": "选择排序的关键是「位置」和「数值」两个都要维护：EAX 记最小值本身，"
+                "EDI 记它在哪。只更新一个，最后一交换就错位。"
+                "它每轮最多换一次，交换次数比冒泡少。",
+    },
 ]
+

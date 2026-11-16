@@ -82,7 +82,7 @@ ASM_TASKS = [
             ],
         }],
         "blanks": [
-            {"accept": ["jge checkthird", "jg checkthird"],
+            {"accept": ["jge checkThird", "jg checkThird"],
              "hint": "EAX 已经 >= second 就不用覆盖它。",
              "why": "jge checkThird：跳过「把 second 装进 eax」那一步。"
                     "必须用有符号跳转 —— 用 jae 会把负数当大数。"},
@@ -128,7 +128,7 @@ ASM_TASKS = [
             {"accept": ["inc ecx"],
              "hint": "计一次步数。",
              "why": "inc ecx 统计加了几次。用 inc 比 add ecx,1 短。"},
-            {"accept": ["jmp compareloop"],
+            {"accept": ["jmp compareLoop"],
              "hint": "这一轮没相等，回到上面再比。",
              "why": "jmp compareLoop 跳回比较处。这不是 LOOP 指令 —— "
                     "LOOP 只按 ECX 倒数，这里不能用。"},
@@ -205,7 +205,7 @@ ASM_TASKS = [
              "hint": "刚才那一位是 0 就跳过计数。",
              "why": "jnc skip：CF = 0 表示这一位是 0，不计数。"
                     "写 jc 就把逻辑反了。"},
-            {"accept": ["loop countloop"],
+            {"accept": ["loop countLoop"],
              "hint": "32 次走完。",
              "why": "loop countLoop 一次完成「ECX 减一 + 非零就跳」。"
                     "注意它不改变标志位，所以可以和上面的 jnc 共存。"},
@@ -252,7 +252,7 @@ int evenCount, evenSum;""",
              "hint": "只看最低位，不改值 —— 这不是比较大小。",
              "why": "test edx, 1 做按位与，只留标志位。"
                     "这里不该用 cmp —— cmp 是比大小，test 才是问某一位是否为 1。"},
-            {"accept": ["jnz skipeven"],
+            {"accept": ["jnz skipEven"],
              "hint": "最低位是 1 说明是奇数，跳过累加。",
              "why": "jnz skipEven：结果为 1（奇数）就跳过。"
                     "也可写 jne，但 jnz 更贴切 —— 问的是「非零」而非「不等」。"},
@@ -302,14 +302,14 @@ int largest, smallest;""",
             ],
         }],
         "blanks": [
-            {"accept": ["jle notlarger"],
+            {"accept": ["jle notLarger"],
              "hint": "不比当前最大值大，就跳过更新。",
              "why": "jle notLarger —— 有符号的「小于等于」。"
                     "用 jbe 判断负数时会错。"},
             {"accept": ["cmp ebx, edx"],
              "hint": "同一趟里，再和当前最小值比一次。",
              "why": "cmp ebx, edx —— EDX 维护最小值，所以在同一个循环体里比第二次。"},
-            {"accept": ["jge notsmaller"],
+            {"accept": ["jge notSmaller"],
              "hint": "不比当前最小值小，就跳过。",
              "why": "jge notSmaller —— 大于等于最小值就不更新。"
                     "注意方向：这里是「没变小就跳过」，和上面那条相反。"},
@@ -364,7 +364,7 @@ int maxOf3(int a, int b, int c)
             },
         ],
         "blanks": [
-            {"accept": ["jge checkc", "jg checkc"],
+            {"accept": ["jge checkC", "jg checkC"],
              "hint": "EAX 已经 >= b 就跳到检查 c 那步。",
              "why": "jge checkC —— 有符号比较，且标签是函数体里的 checkC。"},
             {"accept": ["push a"],
@@ -412,7 +412,7 @@ void minMax(int a, int b, int* lo, int* hi)
             ],
         }],
         "blanks": [
-            {"accept": ["jle inorder"],
+            {"accept": ["jle inOrder"],
              "hint": "a <= b 时已经是有序的，不用交换。",
              "why": "jle inOrder —— 有符号的「小于等于」。"
                     "相等也算有序，所以必须带等号。"},
