@@ -14,7 +14,7 @@ from fastapi import FastAPI
 from fastapi.staticfiles import StaticFiles
 
 from . import store
-from .routers import chat, courses, materials, notes, settings, todos
+from .routers import asm, chat, courses, materials, notes, settings, todos
 
 app = FastAPI(title="Self-Learning Space")
 store.init_db()
@@ -31,7 +31,7 @@ async def no_cache_frontend(request, call_next):
 
 
 for _router in (courses.router, materials.router, notes.router,
-                chat.router, todos.router, settings.router):
+                chat.router, asm.router, todos.router, settings.router):
     app.include_router(_router)
 
 

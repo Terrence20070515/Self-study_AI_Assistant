@@ -4,7 +4,7 @@
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
 <title>Self-Learning Space</title>
-<link rel="stylesheet" href="main.css?v=20261115v">
+<link rel="stylesheet" href="main.css?v=20261116b">
 </head>
 <body>
 <div class="layout">
@@ -188,6 +188,53 @@
     </div>
 
     <!-- 课程视图 -->
+    <!-- 汇编训练（CSI101 专用）：手打 x86 内联汇编，AI 逐条批改。
+         入口在「互动学习」页底部快捷卡片，不放侧栏 -->
+    <div id="asm-view" class="course-view hidden">
+      <header class="course-header">
+        <div>
+          <h1>汇编训练 <span class="asm-tag">手打代码 · AI 逐条批改</span></h1>
+          <div class="course-sub" id="asm-sub">按 CSI101 课程口径（MSVC _asm / x86）出题</div>
+        </div>
+        <div class="course-actions">
+          <button id="btn-asm-back" class="btn btn-ghost">← 返回</button>
+        </div>
+      </header>
+
+      <div class="asm-layout">
+        <aside class="asm-list" id="asm-list"></aside>
+
+        <section class="panel asm-main">
+          <div class="asm-head">
+            <h3 id="asm-title"></h3>
+            <span class="asm-meta" id="asm-meta"></span>
+          </div>
+          <div class="asm-brief" id="asm-brief"></div>
+
+          <div class="asm-label">C++ 侧已有的声明（汇编里直接按名字用）</div>
+          <pre class="asm-decls" id="asm-decls"></pre>
+
+          <div id="asm-hint-box" class="asm-hint hidden"></div>
+          <div id="asm-ref-box" class="asm-ref hidden"></div>
+
+          <div class="asm-label">
+            你的代码　<span class="muted">Tab 插入缩进；提交后 AI 逐条核对，不要求与参考答案一字不差</span>
+          </div>
+          <textarea id="asm-code" class="asm-code" spellcheck="false"
+                    placeholder="_asm {&#10;    &#10;}"></textarea>
+
+          <div class="asm-actions">
+            <button id="btn-asm-submit" class="btn btn-primary">提交批改</button>
+            <button id="btn-asm-hint" class="btn btn-outline">看提示</button>
+            <button id="btn-asm-ref" class="btn btn-ghost">参考答案</button>
+            <span class="asm-score" id="asm-score"></span>
+          </div>
+
+          <div id="asm-feedback" class="asm-feedback"></div>
+        </section>
+      </div>
+    </div>
+
     <div id="course-view" class="course-view hidden">
       <header class="course-header">
         <div>
@@ -277,6 +324,9 @@
           <div class="chat-shortcuts">
             <button id="btn-course-quiz" class="chat-shortcut" title="用这门课的资料出题">
               <b>出题</b><span>按本课资料生成一批练习</span>
+            </button>
+            <button id="btn-asm" class="chat-shortcut hidden" title="手打 x86 内联汇编，AI 逐条批改">
+              <b>汇编训练</b><span>手写代码，按 lab 口径批改</span>
             </button>
             <button id="btn-clear-chat" class="chat-shortcut" title="清空这门课的问答记录">
               <b>清空对话</b><span>删除本课全部问答记录</span>
@@ -612,12 +662,13 @@
     }, 3000);
   });
 </script>
-<script src="core.js?v=20261115v"></script>
-  <script src="views-home.js?v=20261115v"></script>
-  <script src="views-course.js?v=20261115v"></script>
-  <script src="views-quiz.js?v=20261115v"></script>
-  <script src="views-quizpage.js?v=20261115v"></script>
-  <script src="views-tools.js?v=20261115v"></script>
-  <script src="main.js?v=20261115v"></script>
+<script src="core.js?v=20261116b"></script>
+  <script src="views-home.js?v=20261116b"></script>
+  <script src="views-course.js?v=20261116b"></script>
+  <script src="views-quiz.js?v=20261116b"></script>
+  <script src="views-quizpage.js?v=20261116b"></script>
+  <script src="views-asm.js?v=20261116b"></script>
+  <script src="views-tools.js?v=20261116b"></script>
+  <script src="main.js?v=20261116b"></script>
 </body>
 </html>

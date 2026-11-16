@@ -194,6 +194,20 @@ def init_db():
             )"""
         )
         c.execute("CREATE INDEX IF NOT EXISTS idx_attempt_q ON quiz_attempts(question_id)")
+        # 汇编训练：每次提交都留档（代码 + 得分 + 批改 JSON），
+        # 用来给题目列表标「已做/最好成绩」，也方便回头看自己怎么一步步改对的
+        c.execute(
+            """CREATE TABLE IF NOT EXISTS asm_attempts(
+                id INTEGER PRIMARY KEY AUTOINCREMENT,
+                course_id TEXT NOT NULL,
+                task_key TEXT NOT NULL,
+                code TEXT NOT NULL DEFAULT '',
+                score INTEGER NOT NULL DEFAULT 0,
+                feedback TEXT NOT NULL DEFAULT '{}',
+                created_at REAL NOT NULL
+            )"""
+        )
+        c.execute("CREATE INDEX IF NOT EXISTS idx_asm_attempt ON asm_attempts(course_id, task_key)")
         # 覆盖率台账：记录每个知识点单元是否出过题。
         # unit_key 由「资料 + 页 + 段号」拼成（见 core.build_knowledge_units）——
         # 只要资料内容不变，同一页永远算出同一个 key，覆盖率才能跨次累积。
@@ -1025,3 +1039,49 @@ def list_messages(course_id: str, limit: int = 200):
 def clear_messages(course_id: str):
     with _conn() as c:
         c.execute("DELETE FROM messages WHERE course_id=?", (course_id,))
+
+
+# ---------- 汇编训练 ----------
+
+def save_asm_attempt(course_id: str, task_key: str, code: str,
+                     score: int, feedback: dict) -> int:
+    with _conn() as c:
+        cur = c.execute(
+            "INSERT INTO asm_attempts(course_id, task_key, code, score, feedback, created_at)"
+            " VALUES(?,?,?,?,?,?)",
+            (course_id, task_key, code, int(score),
+             json.dumps(feedback or {}, ensure_ascii=False), now()),
+        )
+        return int(cur.lastrowid)
+
+
+def asm_progress(course_id: str) -> dict:
+    """每道题的最佳成绩与提交次数：{task_key: {best, tries, last_at}}"""
+    with _conn() as c:
+        rows = c.execute(
+            "SELECT task_key, MAX(score) AS best, COUNT(*) AS tries, MAX(created_at) AS last_at"
+            " FROM asm_attempts WHERE course_id=? GROUP BY task_key",
+            (course_id,),
+        ).fetchall()
+    return {r["task_key"]: {"best": int(r["best"] or 0),
+                            "tries": int(r["tries"] or 0),
+                            "last_at": r["last_at"]}
+            for r in rows}
+
+
+def latest_asm_attempt(course_id: str, task_key: str):
+    """某道题最近一次提交（含当时的代码与批改），用于「接着上次改」。"""
+    with _conn() as c:
+        row = c.execute(
+            "SELECT * FROM asm_attempts WHERE course_id=? AND task_key=?"
+            " ORDER BY id DESC LIMIT 1",
+            (course_id, task_key),
+        ).fetchone()
+    if not row:
+        return None
+    out = dict(row)
+    try:
+        out["feedback"] = json.loads(out.get("feedback") or "{}")
+    except Exception:
+        out["feedback"] = {}
+    return out

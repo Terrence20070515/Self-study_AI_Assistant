@@ -807,6 +807,110 @@ def _web_block(web: list) -> str:
     return "\n\n".join(lines)
 
 
+# ---------- 汇编训练：批改手写代码 ----------
+# 判分口径：**语义等价**即可，不要求和参考实现逐字相同。
+# 同一道题可以有十种写法，逐字比对会把对的判成错的，这是这类练习最忌讳的。
+
+ASM_GRADE_SYSTEM = (
+    "你是 CSI101（Computer Systems）的助教，批改学生手写的 x86 内联汇编。\n"
+    "本课程的固定口径：\n"
+    "· Visual Studio / MSVC 的 _asm 块；数据一律在 C++ 侧声明，汇编里按变量名引用\n"
+    "· 函数调用是 __cdecl：参数从右往左压栈，调用方负责 add esp, 4×参数个数\n"
+    "· EBX / ESI / EDI / EBP 属于被调用方保护：用过就要 push，且每条出口路径都要 pop\n"
+    "· 标签后必须跟一条指令；LOOP 只能按 ECX 倒数，且不改变标志位\n\n"
+    "批改原则：\n"
+    "1. 先判断**逻辑是否成立**：给这组输入能不能算出正确答案。语义等价的写法一律算对，"
+    "不要求和参考实现长得一样（例如用 jnc 还是 jc 换分支方向、用 xor 还是 mov 0 清寄存器）。\n"
+    "2. 逻辑对了再查工程细节：有符号/无符号跳转是否用对、callee-saved 是否恢复、"
+    "栈是否平衡、指针是否用方括号写回。\n"
+    "3. 错误必须指到**学生代码里的那一行原文**，说清为什么错、改成什么。"
+    "不要只说「这里有问题」而说不出改法。\n"
+    "4. 学生完全写不出来时，不要嘲讽，也不要把参考答案整段抄给他 —— "
+    "先指出从哪一步开始想（寄存器分工 / 循环结构 / 边界）。\n"
+    "5. score 是 0–10 的整数：10 = 逻辑对且工程细节干净；7–9 = 能跑但对边界或约定有疏漏；"
+    "4–6 = 思路对但实现有明显错误；1–3 = 基本没抓住要求；0 = 空代码或完全无关。"
+)
+
+
+def grade_asm(task: dict, code: str) -> dict:
+    """把学生代码和题目、判分要点一起交给模型，返回结构化批改结果。"""
+    code = (code or "").strip()
+    if not code:
+        return {
+            "score": 0,
+            "verdict": "还没有写代码。",
+            "items": [{"point": p, "pass": False, "note": "未作答"} for p in task["checklist"]],
+            "errors": [],
+            "explain": "",
+            "next": "先按提示把循环骨架搭出来，再往里填。",
+        }
+
+    checks = "\n".join(f"{i}. {p}" for i, p in enumerate(task["checklist"], 1))
+    prompt = (
+        f"【题目】{task['title']}（{task['level']}）\n{task['brief']}\n\n"
+        f"【C++ 侧已有的声明】\n{task['decls']}\n\n"
+        f"【判分要点（逐条核对）】\n{checks}\n\n"
+        f"【参考实现（仅供参考，不是唯一答案）】\n{task['reference']}\n\n"
+        f"【学生手写的代码】\n```\n{code}\n```\n\n"
+        "请按下面的 JSON 结构输出，不要输出任何多余文字：\n"
+        "{\n"
+        '  "score": 0-10,\n'
+        '  "verdict": "一句话结论（能算出正确答案吗）",\n'
+        '  "items": [{"point": "要点原文", "pass": true/false, "note": "为什么算/不算通过"}],\n'
+        '  "errors": [{"code": "学生写的那行原文", "issue": "错在哪", "fix": "怎么改"}],\n'
+        '  "explain": "这道题的关键机制讲清楚，3-5 句，围绕学生这次的错误讲",\n'
+        '  "next": "下一步该练什么（一句话）"\n'
+        "}\n"
+        "items 必须和判分要点一一对应，条数相同、顺序相同。"
+    )
+    cfg = load_config()
+    client = _client()
+    resp = client.chat.completions.create(
+        model=cfg["model"],
+        messages=[
+            {"role": "system", "content": ASM_GRADE_SYSTEM},
+            {"role": "user", "content": prompt},
+        ],
+        temperature=0.2,
+        response_format={"type": "json_object"},
+    )
+    import json as _json
+    data = _json.loads(resp.choices[0].message.content or "{}")
+
+    # 结构兜底：模型偶尔漏字段，前端不该因为缺 key 崩
+    score = data.get("score", 0)
+    try:
+        score = max(0, min(10, int(score)))
+    except (TypeError, ValueError):
+        score = 0
+    items = []
+    raw_items = data.get("items") or []
+    for i, point in enumerate(task["checklist"]):
+        got = raw_items[i] if i < len(raw_items) and isinstance(raw_items[i], dict) else {}
+        items.append({
+            "point": point,
+            "pass": bool(got.get("pass")),
+            "note": str(got.get("note") or "").strip(),
+        })
+    errors = []
+    for e in (data.get("errors") or [])[:6]:
+        if isinstance(e, dict):
+            errors.append({
+                "code": str(e.get("code") or "").strip(),
+                "issue": str(e.get("issue") or "").strip(),
+                "fix": str(e.get("fix") or "").strip(),
+            })
+    return {
+        "score": score,
+        "verdict": str(data.get("verdict") or "").strip(),
+        "items": items,
+        "errors": errors,
+        "explain": str(data.get("explain") or "").strip(),
+        "next": str(data.get("next") or "").strip(),
+    }
+
+
+
 # 「允许外部资料」模式：本地资料 + 联网网页两路材料，必须区分来源、不得伪造引用
 EXTERNAL_SYSTEM = (
     "你是一位严谨的课程学习助手。本次给你两路材料：\n"

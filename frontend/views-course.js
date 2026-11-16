@@ -266,6 +266,7 @@ async function openCourse(id) {
   $("#btn-clear-chat").classList.toggle("hidden", isUnfiled);
   $("#btn-edit-course").classList.toggle("hidden", isUnfiled);
   $("#btn-course-quiz").classList.toggle("hidden", isUnfiled);   // 未分类不出题
+  syncAsmEntry(c);                                           // 只有有汇编题库的课才显示
   // 未分类只是中转区：不需要 HandBook 和互动学习，只留资料库
   $("#tab-bar").classList.toggle("hidden", isUnfiled);
   showView("course");

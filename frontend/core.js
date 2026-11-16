@@ -225,7 +225,7 @@ document.querySelectorAll("[data-close]").forEach(b =>
 const VIEW_SELECTORS = {
   home: "#home-view", course: "#course-view", recycle: "#recycle-view",
   grade: "#grade-view", todo: "#todo-view", library: "#library-view", import: "#import-view",
-  quiz: "#quiz-view",
+  quiz: "#quiz-view", asm: "#asm-view",
 };
 
 function showView(name) {
