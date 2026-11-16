@@ -376,6 +376,12 @@ ASM_TASKS = [
     },
 ]
 
+# 第二批：自编题（不照搬 lab，但知识点严格限定在课程已覆盖的指令内）
+# 单独放一个文件，加题时不用动这份 lab 题
+from .asm_extra import EXTRA_TASKS  # noqa: E402
+
+ASM_TASKS.extend(EXTRA_TASKS)
+
 ASM_TASK_MAP = {t["key"]: t for t in ASM_TASKS}
 
 
