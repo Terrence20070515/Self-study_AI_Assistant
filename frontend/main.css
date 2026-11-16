@@ -906,7 +906,7 @@ label.btn { display: inline-flex; align-items: center; }
   content: attr(data-ph); color: var(--text-2); opacity: .55; pointer-events: none;
 }
 
-/* ===== 汇编训练（CSI101）===== */
+/* ===== 汇编训练（CSI101）· 填空版 ===== */
 .asm-tag { font-size: 11px; font-weight: 400; color: var(--text-2); margin-left: 8px; letter-spacing: .3px; }
 .asm-layout { display: grid; grid-template-columns: 236px minmax(0, 1fr); gap: 16px; align-items: start; }
 
@@ -947,30 +947,47 @@ label.btn { display: inline-flex; align-items: center; }
   border-radius: 8px; font-size: 12px; line-height: 1.7; white-space: pre-wrap;
   font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
 }
+
+/* 代码骨架：行号 + 静态代码 + 空位输入框 */
 .asm-code {
-  width: 100%; min-height: 240px; resize: vertical; padding: 12px 14px;
-  background: var(--code-bg); border: 1px solid var(--border); border-radius: 8px;
+  background: var(--pre-bg); border: 1px solid var(--border); border-radius: 8px;
+  padding: 10px 0; overflow-x: auto;
   font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
-  font-size: 12.5px; line-height: 1.75; color: var(--text); tab-size: 4;
+  font-size: 12.5px; line-height: 2.15;
 }
-.asm-code:focus { outline: none; border-color: var(--accent); }
+.asm-line { display: flex; align-items: center; padding: 0 12px; white-space: pre; }
+.asm-line:hover { background: var(--accent-weak); }
+.asm-ln {
+  flex: 0 0 26px; text-align: right; padding-right: 10px;
+  color: var(--text-2); font-size: 10.5px; user-select: none;
+}
+.asm-src { white-space: pre; }
+.asm-part {
+  padding: 10px 12px 2px; font-size: 11.5px; color: var(--text-2); letter-spacing: .2px;
+}
+.asm-blank {
+  font-family: inherit; font-size: inherit; color: var(--text);
+  background: var(--surface); border: 1px solid var(--border);
+  border-radius: 4px; padding: 1px 7px; width: 168px; outline: none;
+}
+.asm-blank::placeholder { color: var(--border); }
+.asm-blank:focus { border-color: var(--accent); box-shadow: 0 0 0 2px var(--accent-weak); }
+.asm-blank.ok { border-color: var(--ok); background: var(--ok-weak); }
+.asm-blank.bad { border-color: var(--danger); background: var(--danger-weak); }
+.asm-blank.near { border-color: var(--warn-border); background: var(--warn-surface); }
+.asm-answer { color: var(--ok); font-size: 11.5px; margin-left: 7px; }
+
 .asm-actions { display: flex; align-items: center; gap: 8px; margin-top: 10px; }
 .asm-score { margin-left: auto; font-size: 11.5px; color: var(--text-2); }
-
-.asm-hint, .asm-ref {
+.asm-hint {
   margin-top: 10px; padding: 10px 12px; border-radius: 8px;
-  font-size: 12.5px; line-height: 1.75;
+  background: var(--accent-weak); font-size: 12.5px; line-height: 1.75;
 }
-.asm-hint { background: var(--accent-weak); }
 .asm-hint ol { margin: 6px 0 0 18px; }
 .asm-hint li { margin-bottom: 5px; }
-.asm-ref {
-  background: var(--pre-bg); border: 1px solid var(--border); white-space: pre-wrap;
-  font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace; font-size: 12px;
-}
 
-/* 批改结果 */
-.asm-feedback { margin-top: 16px; }
+/* 结果 */
+.asm-result { margin-top: 16px; }
 .asm-empty { color: var(--text-2); font-size: 12.5px; padding: 12px 0; }
 .asm-score-row { display: flex; align-items: center; gap: 14px; }
 .asm-big { font-size: 30px; font-weight: 700; line-height: 1; }
@@ -978,24 +995,23 @@ label.btn { display: inline-flex; align-items: center; }
 .asm-big.ok { color: var(--ok); }
 .asm-big.half { color: var(--warn-fg); }
 .asm-big.bad { color: var(--danger); }
-.asm-verdict { font-size: 13px; line-height: 1.65; }
-.asm-checks { list-style: none; margin: 14px 0 0; padding: 0; display: flex; flex-direction: column; gap: 7px; }
-.asm-checks li { display: flex; gap: 9px; font-size: 12.5px; line-height: 1.65; }
-.asm-check { flex: 0 0 auto; width: 13px; font-weight: 700; }
-.asm-checks li.pass .asm-check { color: var(--ok); }
-.asm-checks li.fail .asm-check { color: var(--danger); }
-.asm-checks em { display: block; font-style: normal; font-size: 11.5px; color: var(--text-2); margin-top: 1px; }
-.asm-errs { margin-top: 16px; display: flex; flex-direction: column; gap: 10px; }
-.asm-err { border-left: 2px solid var(--danger); padding: 2px 0 2px 11px; }
-.asm-err code {
-  display: inline-block; background: var(--code-bg); padding: 1px 7px; border-radius: 4px;
-  font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace; font-size: 11.5px;
+.asm-verdict { font-size: 12.5px; line-height: 1.75; }
+.asm-rows { display: flex; flex-direction: column; gap: 12px; margin-top: 16px; }
+.asm-row { display: flex; gap: 10px; }
+.asm-row-tag { flex: 0 0 46px; font-size: 11.5px; color: var(--text-2); padding-top: 1px; }
+.asm-row-body { flex: 1; min-width: 0; }
+.asm-row-line { display: flex; align-items: center; gap: 7px; flex-wrap: wrap; font-size: 12px; }
+.asm-row-line code {
+  background: var(--code-bg); padding: 1px 7px; border-radius: 4px;
+  font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
 }
-.asm-err-issue { font-size: 12.5px; line-height: 1.65; margin-top: 5px; }
-.asm-err-fix { font-size: 12px; line-height: 1.65; margin-top: 3px; color: var(--ok); }
-.asm-explain { margin-top: 16px; }
-.asm-explain p { margin: 0; font-size: 12.5px; line-height: 1.85; }
-.asm-next { margin-top: 14px; font-size: 12.5px; color: var(--accent); }
+.asm-row-arrow { color: var(--text-2); }
+.asm-row-right { color: var(--ok); }
+.asm-row-why { font-size: 12px; line-height: 1.75; color: var(--text-2); margin-top: 5px; }
+.asm-note {
+  margin-top: 16px; padding: 10px 12px; background: var(--accent-weak);
+  border-radius: 8px; font-size: 12.5px; line-height: 1.85;
+}
 
 @media (max-width: 940px) {
   .asm-layout { grid-template-columns: 1fr; }

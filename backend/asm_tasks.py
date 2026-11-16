@@ -1,383 +1,435 @@
-"""CSI101 汇编训练题库。
+"""CSI101 汇编训练题库 · 填空版。
 
-口径完全按课程 lab 来：x86 · Visual Studio 的 MSVC 内联汇编（_asm 块）·
-数据一律在 C++ 侧声明、汇编里按变量名引用（内联汇编不能自己定义数据）。
-题目从 Lab01–Lab04 的 Task 提炼，覆盖：CMP/Jcc、SHR/SAR/CL、LOOP/TEST、
-栈参数调用、指针写回。
+形式对齐课程 Assessment：给完整的代码骨架，只挖掉关键的那几行，
+学生填的是「这一行该写什么」，不是从零敲一整段。
+理由：填空能一眼核对（错在哪一行、对没对），手敲整段反而没法验证。
 
-学生要**手打**整段汇编，不是填空 —— 所以每题都给：
-  decls     C++ 侧已经声明好的变量（直接可用，不用自己写）
-  starter   编辑器里的初始骨架
-  hints     卡住时按需展开的提示（分条，可以只看第一条）
-  reference 参考实现（提交后才给看）
-  checklist 判分要点，逐条核对，避免"跑通就算对"
+数据结构：
+    parts   一个或多个代码片段（每段有 label），行内用 ____ 占位
+    blanks  按 ____ 出现的顺序一一对应，每个空有
+              accept  可接受答案（归一化后比较，空白/大小写/逗号空格都忽略）
+              hint    卡住时的提示
+              why     填错时的解释，也用于提交后的逐条复盘
+    note    全对后给出的机制说明
+
+允许的指令严格限定在课程 lab 出现过的范围内（见 README 的安全集）。
 """
+
+BLANK = "____"
 
 ASM_TASKS = [
     {
         "key": "stack_sort2",
         "title": "栈顶两数降序",
         "level": "easy",
-        "lab": "Assessment · 栈操作",
-        "brief": "栈顶已经压了两个数。用 pop 把它们取到 EAX / EBX，比较后按降序放回栈 "
-                 "—— 大的那个在栈顶（最后 push 的在顶上）。"
-                 "不交换和交换两条路径，最后都要走到那两条 push。",
-        "decls": "int a, b;\n// 进入 _asm 之前：push a / push b 已经把两个数放到栈顶",
-        "starter": "_asm {\n    \n}",
-        "hints": [
-            "pop 的顺序决定谁是谁：先 pop 到 EAX 拿到的是原来的栈顶。",
-            "cmp eax, ebx 之后，jge 表示「EAX 已经不小于 EBX」，那就跳过交换。",
-            "三个 mov 才能完成交换，需要一个第三个寄存器暂存 —— 直接用 ECX。",
-            "push 的顺序反过来想：谁想留在栈顶，谁就最后 push。",
-            "交换分支可以 jmp 汇合，但更省事的写法是让两条 push 放在标签之后，"
-            "两条路径自然都会经过。",
+        "source": "Assessment · 栈操作",
+        "brief": "栈顶已经压了两个数。把它们取到 EAX / EBX，比较后按降序放回栈 "
+                 "—— 大的那个要在栈顶。不交换和交换两条路径，最后都要走到那两条 push。",
+        "decls": """int a, b;
+// 进入 _asm 之前：push a / push b 已经把两个数放到栈顶""",
+        "parts": [{
+            "label": "",
+            "lines": [
+                "pop     eax",
+                "pop     ebx",
+                BLANK,
+                BLANK,
+                "mov     ecx, eax",
+                "mov     eax, ebx",
+                BLANK,
+                "done:",
+                "push    ebx",
+                "push    eax",
+            ],
+        }],
+        "blanks": [
+            {"accept": ["cmp eax, ebx"],
+             "hint": "比较两个寄存器，不用改任何值。",
+             "why": "第 3 行只是比较：cmp eax, ebx。它只设标志位，不动寄存器。"},
+            {"accept": ["jge done"],
+             "hint": "EAX 已经不小于 EBX 时要跳过交换。",
+             "why": "要写成 jge done —— 有符号的「大于等于」才跳过交换。"
+                    "用 ja 会在负数时判错。"},
+            {"accept": ["mov ebx, ecx"],
+             "hint": "交换的第三步：把暂存的值放回去。",
+             "why": "交换要三条 mov：先 mov ecx,eax 暂存，再 mov eax,ebx，"
+                    "最后 mov ebx,ecx 把暂存值放回 ebx。"},
         ],
-        "reference": (
-            "_asm {\n"
-            "    pop     eax               // 原来的栈顶\n"
-            "    pop     ebx               // 第二个\n"
-            "    cmp     eax, ebx\n"
-            "    jge     done              // eax >= ebx，已经是降序，不用换\n"
-            "    mov     ecx, eax          // 交换 eax / ebx\n"
-            "    mov     eax, ebx\n"
-            "    mov     ebx, ecx\n"
-            "done:\n"
-            "    push    ebx               // 小的先入栈\n"
-            "    push    eax               // 大的后入栈 -> 落在栈顶\n"
-            "}"
-        ),
-        "checklist": [
-            "pop 到 EAX / EBX 的顺序与题目一致",
-            "用有符号比较（cmp + jge / jl），不是 jae / jb",
-            "交换用三个 mov（或用 xchg 一步完成）",
-            "最后 push 的顺序：先小后大，大值落在栈顶",
-            "不管走不走交换分支，两条 push 都会执行到",
-        ],
+        "note": "关键在于 push 的顺序：jge 保证了交换后一定有 eax >= ebx，"
+                "所以先 push ebx（小的）、再 push eax（大的），大值才落在栈顶。",
     },
     {
         "key": "max3",
         "title": "三个数取最大",
         "level": "easy",
-        "lab": "Lab 01 · Task 1",
-        "brief": "在 _asm 块里比较 first / second / third，把最大的那个存进 largest。"
+        "source": "Lab 01 · Task 1",
+        "brief": "用「当前最大值」模式比较 first / second / third，把最大的存进 largest。"
                  "输入可能是负数。",
         "decls": "int first, second, third, largest;",
-        "starter": "_asm {\n    \n}",
-        "hints": [
-            "用「当前最大值」模式：EAX 存目前见过最大的，每来一个新候选就比一次。三个数比两次就够。",
-            "形状是 cmp eax, second / jge 跳过 / mov eax, second / 跳过:",
-            "必须用有符号跳转（JG / JGE）。用 JA / JAE 会把 -5 判成比 -20 小。",
-            "标签后面必须跟一条指令，不能悬在块尾。",
+        "parts": [{
+            "label": "",
+            "lines": [
+                "mov     eax, first",
+                "cmp     eax, second",
+                BLANK,
+                "mov     eax, second",
+                "checkThird:",
+                BLANK,
+                "jge     haveMax",
+                BLANK,
+                "haveMax:",
+                "mov     largest, eax",
+            ],
+        }],
+        "blanks": [
+            {"accept": ["jge checkthird", "jg checkthird"],
+             "hint": "EAX 已经 >= second 就不用覆盖它。",
+             "why": "jge checkThird：跳过「把 second 装进 eax」那一步。"
+                    "必须用有符号跳转 —— 用 jae 会把负数当大数。"},
+            {"accept": ["cmp eax, third"],
+             "hint": "第二次比较：当前最大值和第三个候选。",
+             "why": "cmp eax, third —— running max 的第二轮，拿当前最大值比新候选。"},
+            {"accept": ["mov eax, third"],
+             "hint": "第三个更大时，把它变成新的最大值。",
+             "why": "mov eax, third —— 只有 jge 没跳（即 third 更大）时才会执行到这里。"},
         ],
-        "reference": (
-            "_asm {\n"
-            "    mov     eax, first\n"
-            "    cmp     eax, second\n"
-            "    jge     checkThird\n"
-            "    mov     eax, second\n"
-            "checkThird:\n"
-            "    cmp     eax, third\n"
-            "    jge     haveMax\n"
-            "    mov     eax, third\n"
-            "haveMax:\n"
-            "    mov     largest, eax\n"
-            "}"
-        ),
-        "checklist": [
-            "两次比较（不是三次），用 running-maximum 模式",
-            "使用有符号条件跳转 jge / jg（不是 jae / ja）",
-            "最终结果写回 largest",
-            "每个标签后都有指令",
-        ],
+        "note": "running-maximum：EAX 先当临时最大值，依次和每个候选比一次。"
+                "三个数只要比两次，不是三次。",
     },
     {
         "key": "count_up",
         "title": "循环直到相等",
         "level": "easy",
-        "lab": "Lab 01 · Task 2",
-        "brief": "从 cur 开始每次加 1，直到 cur 等于 target 为止；"
-                 "把一共加了多少次记进 steps，最后把 cur 也更新回变量。",
+        "source": "Lab 01 · Task 2",
+        "brief": "从 cur 开始每次加 1，直到等于 target；把加的次数记进 steps，"
+                 "cur 也要更新回变量。",
         "decls": "int cur, target, steps;",
-        "starter": "_asm {\n    \n}",
-        "hints": [
-            "比较要放在循环体开头：相等就跳出去，不相等才自增。",
-            "计数用 INC（比 ADD reg, 1 短一个字节，也是 lab 里要求的形式）。",
-            "循环末尾需要一条 jmp 跳回比较处 —— 这不是 LOOP 指令，LOOP 只能按 ECX 倒数。",
-            "别把 cur 只留在寄存器里：循环结束后要 mov 回变量。",
+        "parts": [{
+            "label": "",
+            "lines": [
+                "mov     eax, cur",
+                "mov     ebx, target",
+                "xor     ecx, ecx",
+                "compareLoop:",
+                BLANK,
+                "je      finished",
+                "inc     eax",
+                BLANK,
+                BLANK,
+                "finished:",
+                "mov     cur, eax",
+                "mov     steps, ecx",
+            ],
+        }],
+        "blanks": [
+            {"accept": ["cmp eax, ebx"],
+             "hint": "循环条件：当前值和目标值比较。",
+             "why": "cmp eax, ebx，紧接着 je finished 表示「相等就出去」。"},
+            {"accept": ["inc ecx"],
+             "hint": "计一次步数。",
+             "why": "inc ecx 统计加了几次。用 inc 比 add ecx,1 短。"},
+            {"accept": ["jmp compareloop"],
+             "hint": "这一轮没相等，回到上面再比。",
+             "why": "jmp compareLoop 跳回比较处。这不是 LOOP 指令 —— "
+                    "LOOP 只按 ECX 倒数，这里不能用。"},
         ],
-        "reference": (
-            "_asm {\n"
-            "    mov     eax, cur\n"
-            "    mov     ebx, target\n"
-            "    xor     ecx, ecx          // steps = 0\n"
-            "compareLoop:\n"
-            "    cmp     eax, ebx\n"
-            "    je      finished\n"
-            "    inc     eax\n"
-            "    inc     ecx\n"
-            "    jmp     compareLoop\n"
-            "finished:\n"
-            "    mov     cur, eax\n"
-            "    mov     steps, ecx\n"
-            "}"
-        ),
-        "checklist": [
-            "循环条件在体首判断，相等才退出",
-            "计数用 inc（不是 add reg,1 之外的自创写法）",
-            "有跳回比较处的 jmp",
-            "cur 与 steps 都写回了变量",
-        ],
+        "note": "条件判断放在循环体开头，跳出去之后才写回变量。"
+                "这个结构就是 while (cur != target) 的汇编版。",
     },
     {
         "key": "shift_cl",
         "title": "用 CL 做变量移位",
         "level": "medium",
-        "lab": "Lab 02 · Task 1",
-        "brief": "把 value 右移 count 位：算术移位的结果存 arithmetic，逻辑移位的结果存 logical。"
-                 "count 是变量，不是常量。",
+        "source": "Lab 02 · Task 1",
+        "brief": "把 value 右移 count 位（count 是变量不是常量）："
+                 "算术移位结果存 arithmetic，逻辑移位结果存 logical。",
         "decls": "int value, count, arithmetic, logical;",
-        "starter": "_asm {\n    \n}",
-        "hints": [
-            "移位次数不是常量时，只能放在 CL 里 —— 指令编码没有别的选择。",
-            "不能直接把字节寄存器从 32 位变量里取出来：先 mov ecx, count，CL 就是 ECX 的低字节。",
-            "两次移位之间要把 value 重新装回 EAX，否则第二次是在移位后的结果上再移。",
+        "parts": [{
+            "label": "",
+            "lines": [
+                BLANK,
+                "mov     eax, value",
+                BLANK,
+                "mov     arithmetic, eax",
+                "mov     eax, value",
+                BLANK,
+                "mov     logical, eax",
+            ],
+        }],
+        "blanks": [
+            {"accept": ["mov ecx, count"],
+             "hint": "移位次数要放进 CL，而 CL 是 ECX 的低字节。",
+             "why": "mov ecx, count —— 不能直接给 CL 赋值。先装 ECX，CL 就是它的低 8 位。"
+                    "移位次数不是常量时，也只能放在 CL 里。"},
+            {"accept": ["sar eax, cl"],
+             "hint": "算术右移：符号位要复制下来。",
+             "why": "sar eax, cl 是算术右移，负数移位后仍然是负数。"
+                    "用 shr 会补 0，把 -32 变成大正数。"},
+            {"accept": ["shr eax, cl"],
+             "hint": "逻辑右移：高位一律补 0。",
+             "why": "shr eax, cl 是逻辑右移。同一份 value、同一个次数，"
+                    "它和 sar 的结果只有在负数时才不同 —— 这正是这个 lab 的重点。"},
         ],
-        "reference": (
-            "_asm {\n"
-            "    mov     ecx, count\n"
-            "    mov     eax, value\n"
-            "    sar     eax, cl           // 算术右移：符号位复制下来\n"
-            "    mov     arithmetic, eax\n"
-            "    mov     eax, value\n"
-            "    shr     eax, cl           // 逻辑右移：高位补 0\n"
-            "    mov     logical, eax\n"
-            "}"
-        ),
-        "checklist": [
-            "移位次数来自 CL（先 mov ecx, count）",
-            "算术用 sar、逻辑用 shr，两者没搞反",
-            "每次移位前都重新把 value 装进 EAX",
-        ],
+        "note": "SHR 与 SAR 的分歧只出现在负数上；正数时两者一样，"
+                "所以这个 bug 特别容易漏测。",
     },
     {
         "key": "count_ones",
         "title": "数 1 的位数",
         "level": "medium",
-        "lab": "Lab 02 · Task 2",
-        "brief": "统计 value 的 32 位里有多少位是 1，结果存进 ones。"
-                 "验证：-1 得 32，0 得 0，255 得 8，-32 得 27。",
+        "source": "Lab 02 · Task 2",
+        "brief": "统计 value 的 32 位里有多少位是 1，存进 ones。"
+                 "自检：-1 得 32，0 得 0，255 得 8，-32 得 27。",
         "decls": "unsigned int value;\nint ones;",
-        "starter": "_asm {\n    \n}",
-        "hints": [
-            "shr 一次，最低位就被推进进位标志 CF；JNC 跳过「加一」那步。",
-            "循环 32 次，用 LOOP 最省事（ECX 自动倒数）。",
-            "别在循环里破坏 ECX —— LOOP 靠它计数。",
-            "如果用 EBX 存计数，记得 push / pop（callee-saved）。",
+        "parts": [{
+            "label": "",
+            "lines": [
+                "xor     eax, eax",
+                "mov     edx, value",
+                "mov     ecx, 32",
+                "countLoop:",
+                BLANK,
+                BLANK,
+                "inc     eax",
+                "skip:",
+                BLANK,
+                "mov     ones, eax",
+            ],
+        }],
+        "blanks": [
+            {"accept": ["shr edx, 1"],
+             "hint": "把最低位挤出去，它会落到进位标志里。",
+             "why": "shr edx, 1 —— 右移一位，最低位被推进 CF。"
+                    "这里必须用 shr（逻辑），不能用 sar。"},
+            {"accept": ["jnc skip"],
+             "hint": "刚才那一位是 0 就跳过计数。",
+             "why": "jnc skip：CF = 0 表示这一位是 0，不计数。"
+                    "写 jc 就把逻辑反了。"},
+            {"accept": ["loop countloop"],
+             "hint": "32 次走完。",
+             "why": "loop countLoop 一次完成「ECX 减一 + 非零就跳」。"
+                    "注意它不改变标志位，所以可以和上面的 jnc 共存。"},
         ],
-        "reference": (
-            "_asm {\n"
-            "    xor     eax, eax          // 计数\n"
-            "    mov     edx, value\n"
-            "    mov     ecx, 32\n"
-            "countLoop:\n"
-            "    shr     edx, 1            // 最低位进 CF\n"
-            "    jnc     skip\n"
-            "    inc     eax\n"
-            "skip:\n"
-            "    loop    countLoop\n"
-            "    mov     ones, eax\n"
-            "}"
-        ),
-        "checklist": [
-            "用 shr 把最低位送进 CF，再看 CF（jnc / jc / adc 皆可）",
-            "恰好循环 32 次",
-            "循环控制寄存器（ECX）在体内没被破坏",
-            "结果写回 ones",
-        ],
+        "note": "这个模式是「移位把位送进 CF，再看 CF」——"
+                "凡是逐位检查的题，都是这个骨架。",
     },
     {
         "key": "even_sum",
         "title": "偶数求和与计数",
         "level": "medium",
-        "lab": "Lab 03 · Task 1",
-        "brief": "用 LOOP 走完 data 数组（5 个 int），只把偶数累加进 evenSum，"
-                 "同时用 evenCount 记下有几个偶数。期望：3 个偶数，和 28。",
-        "decls": "#define SIZE 5\nint data[SIZE] = { 4, 8, 15, 16, 23 };\nint evenCount, evenSum;",
-        "starter": "_asm {\n    \n}",
-        "hints": [
-            "判断奇偶看最低位，用 test edx, 1 —— 不是 cmp。TEST 只留标志位，正好问「这一位是不是 1」。",
-            "给了寄存器分工就先写下来：ESI 指针、EAX 和、EBX 个数、EDX 当前元素、ECX 计数器。",
-            "ESI 和 EBX 都属于自己要保护的寄存器：进来 push，出去按反序 pop。",
-            "指针每次前进 4 字节（一个 int）。",
+        "source": "Lab 03 · Task 1",
+        "brief": "用 LOOP 走完 data（5 个 int），只累加偶数并计数。"
+                 "期望：3 个偶数，和 28。",
+        "decls": """#define SIZE 5
+int data[SIZE] = { 4, 8, 15, 16, 23 };
+int evenCount, evenSum;""",
+        "parts": [{
+            "label": "",
+            "lines": [
+                "push    esi",
+                "push    ebx",
+                "lea     esi, data",
+                "mov     ecx, SIZE",
+                "xor     eax, eax",
+                "xor     ebx, ebx",
+                "evenLoop:",
+                "mov     edx, [esi]",
+                BLANK,
+                BLANK,
+                "add     eax, edx",
+                "inc     ebx",
+                "skipEven:",
+                BLANK,
+                "loop    evenLoop",
+                "mov     evenSum, eax",
+                "mov     evenCount, ebx",
+                "pop     ebx",
+                "pop     esi",
+            ],
+        }],
+        "blanks": [
+            {"accept": ["test edx, 1"],
+             "hint": "只看最低位，不改值 —— 这不是比较大小。",
+             "why": "test edx, 1 做按位与，只留标志位。"
+                    "这里不该用 cmp —— cmp 是比大小，test 才是问某一位是否为 1。"},
+            {"accept": ["jnz skipeven"],
+             "hint": "最低位是 1 说明是奇数，跳过累加。",
+             "why": "jnz skipEven：结果为 1（奇数）就跳过。"
+                    "也可写 jne，但 jnz 更贴切 —— 问的是「非零」而非「不等」。"},
+            {"accept": ["add esi, 4"],
+             "hint": "指针前进一个 int。",
+             "why": "add esi, 4 —— 一个 int 是 4 字节，不是 1。"},
         ],
-        "reference": (
-            "_asm {\n"
-            "    push    esi\n"
-            "    push    ebx\n"
-            "    lea     esi, data\n"
-            "    mov     ecx, SIZE\n"
-            "    xor     eax, eax          // sum\n"
-            "    xor     ebx, ebx          // count\n"
-            "evenLoop:\n"
-            "    mov     edx, [esi]\n"
-            "    test    edx, 1\n"
-            "    jnz     skipEven          // 最低位是 1 -> 奇数\n"
-            "    add     eax, edx\n"
-            "    inc     ebx\n"
-            "skipEven:\n"
-            "    add     esi, 4\n"
-            "    loop    evenLoop\n"
-            "    mov     evenSum, eax\n"
-            "    mov     evenCount, ebx\n"
-            "    pop     ebx\n"
-            "    pop     esi\n"
-            "}"
-        ),
-        "checklist": [
-            "用 test reg, 1 判奇偶（不是 cmp）",
-            "ESI 与 EBX 都 push 了，并按反序 pop",
-            "指针每次 +4",
-            "和与个数分别写回 evenSum / evenCount",
-        ],
+        "note": "寄存器分工先定好：ESI 指针、EAX 和、EBX 个数、EDX 当前元素、ECX 计数。"
+                "ESI 和 EBX 都是被调用方要保护的，所以 push 进来、反序 pop 出去。",
     },
     {
         "key": "min_max_pass",
         "title": "一趟找出最大和最小",
         "level": "hard",
-        "lab": "Lab 03 · Task 2",
-        "brief": "只走一遍数组，同时求出最大值和最小值，分别存进 largest / smallest。"
-                 "不许走两遍。",
-        "decls": "#define SIZE 5\nint data[SIZE] = { 4, 8, 15, 16, 23 };\nint largest, smallest;",
-        "starter": "_asm {\n    \n}",
-        "hints": [
-            "先把第一个元素同时当成最大值和最小值，然后从第二个开始比 —— 这样循环次数少一次。",
-            "循环体里两次比较：比当前最大大就换最大，比当前最小小就换最小。",
-            "两次比较都要用有符号跳转。",
-            "用 EBX 装当前元素的话，EBX 也要 push / pop。",
+        "source": "Lab 03 · Task 2",
+        "brief": "只走一遍数组，同时求出最大值和最小值，存进 largest / smallest。不许走两遍。",
+        "decls": """#define SIZE 5
+int data[SIZE] = { 4, 8, 15, 16, 23 };
+int largest, smallest;""",
+        "parts": [{
+            "label": "",
+            "lines": [
+                "push    esi",
+                "push    ebx",
+                "lea     esi, data",
+                "mov     ecx, SIZE",
+                "dec     ecx",
+                "mov     eax, [esi]",
+                "mov     edx, [esi]",
+                "add     esi, 4",
+                "scanLoop:",
+                "mov     ebx, [esi]",
+                "cmp     ebx, eax",
+                BLANK,
+                "mov     eax, ebx",
+                "notLarger:",
+                BLANK,
+                BLANK,
+                "mov     edx, ebx",
+                "notSmaller:",
+                "add     esi, 4",
+                "loop    scanLoop",
+                "mov     largest, eax",
+                "mov     smallest, edx",
+                "pop     ebx",
+                "pop     esi",
+            ],
+        }],
+        "blanks": [
+            {"accept": ["jle notlarger"],
+             "hint": "不比当前最大值大，就跳过更新。",
+             "why": "jle notLarger —— 有符号的「小于等于」。"
+                    "用 jbe 判断负数时会错。"},
+            {"accept": ["cmp ebx, edx"],
+             "hint": "同一趟里，再和当前最小值比一次。",
+             "why": "cmp ebx, edx —— EDX 维护最小值，所以在同一个循环体里比第二次。"},
+            {"accept": ["jge notsmaller"],
+             "hint": "不比当前最小值小，就跳过。",
+             "why": "jge notSmaller —— 大于等于最小值就不更新。"
+                    "注意方向：这里是「没变小就跳过」，和上面那条相反。"},
         ],
-        "reference": (
-            "_asm {\n"
-            "    push    esi\n"
-            "    push    ebx\n"
-            "    lea     esi, data\n"
-            "    mov     ecx, SIZE\n"
-            "    dec     ecx               // 第一个元素已经处理\n"
-            "    mov     eax, [esi]        // largest\n"
-            "    mov     edx, [esi]        // smallest\n"
-            "    add     esi, 4\n"
-            "scanLoop:\n"
-            "    mov     ebx, [esi]\n"
-            "    cmp     ebx, eax\n"
-            "    jle     notLarger\n"
-            "    mov     eax, ebx\n"
-            "notLarger:\n"
-            "    cmp     ebx, edx\n"
-            "    jge     notSmaller\n"
-            "    mov     edx, ebx\n"
-            "notSmaller:\n"
-            "    add     esi, 4\n"
-            "    loop    scanLoop\n"
-            "    mov     largest, eax\n"
-            "    mov     smallest, edx\n"
-            "    pop     ebx\n"
-            "    pop     esi\n"
-            "}"
-        ),
-        "checklist": [
-            "只用一个循环（不是两趟）",
-            "最大值与最小值分别用两个寄存器维护",
-            "两次比较都用有符号跳转",
-            "用到的 callee-saved 寄存器都恢复了",
-        ],
+        "note": "第一个元素同时当最大和最小，所以循环从第二个开始（dec ecx）。"
+                "一个循环、两次比较、两个寄存器各自维护 —— 这就是「一趟」。",
     },
     {
         "key": "max_of_3_fn",
         "title": "带三个参数的函数",
         "level": "hard",
-        "lab": "Lab 04 · Task 1",
-        "brief": "用 _asm 写 maxOf3(a, b, c) 的函数体（结果写进 result），"
-                 "再在另一个 _asm 块里手动压栈调用它，把返回值存进 answer。",
-        "decls": "int answer;\nint a = 10, b = 3, c = 25;\n\nint maxOf3(int a, int b, int c)\n{\n    int result;\n    _asm {\n        // 第一段：函数体\n    }\n    return result;\n}",
-        "starter": "// 1) 先写 maxOf3 的函数体：\n_asm {\n    \n}\n\n// 2) 再写调用处（在另一个 _asm 块里）：\n_asm {\n    \n}",
-        "hints": [
-            "函数体里照搬 Lab01 的 running maximum：EAX / ECX / EDX 都空着，不需要 push。",
-            "调用处从右往左压：push c，push b，push a。",
-            "三个参数意味着 add esp, 12 —— 这是这个 lab 里最常见的错。",
-            "第三个参数虽然在 [ebp+16]，但你还是写 c，偏移编译器替你算。",
+        "source": "Lab 04 · Task 1",
+        "brief": "补完 maxOf3 的函数体，以及调用处：调用方手动压三个参数，"
+                 "调用后自己清栈。",
+        "decls": """int answer;
+int a = 10, b = 3, c = 25;
+
+int maxOf3(int a, int b, int c)
+{
+    int result;
+    _asm {
+        // 见下方片段一
+    }
+    return result;
+}""",
+        "parts": [
+            {
+                "label": "片段一：函数体内",
+                "lines": [
+                    "mov     eax, a",
+                    "cmp     eax, b",
+                    BLANK,
+                    "mov     eax, b",
+                    "checkC:",
+                    "cmp     eax, c",
+                    "jge     haveMax",
+                    "mov     eax, c",
+                    "haveMax:",
+                    "mov     result, eax",
+                ],
+            },
+            {
+                "label": "片段二：调用处",
+                "lines": [
+                    "push    c",
+                    "push    b",
+                    BLANK,
+                    "call    maxOf3",
+                    BLANK,
+                    "mov     answer, eax",
+                ],
+            },
         ],
-        "reference": (
-            "// 函数体\n"
-            "_asm {\n"
-            "    mov     eax, a\n"
-            "    cmp     eax, b\n"
-            "    jge     checkC\n"
-            "    mov     eax, b\n"
-            "checkC:\n"
-            "    cmp     eax, c\n"
-            "    jge     haveMax\n"
-            "    mov     eax, c\n"
-            "haveMax:\n"
-            "    mov     result, eax\n"
-            "}\n\n"
-            "// 调用处\n"
-            "_asm {\n"
-            "    push    c                 // 第三个参数先压\n"
-            "    push    b\n"
-            "    push    a                 // 第一个参数最后压\n"
-            "    call    maxOf3\n"
-            "    add     esp, 12           // 三个参数\n"
-            "    mov     answer, eax\n"
-            "}"
-        ),
-        "checklist": [
-            "压栈顺序是 c、b、a（右到左）",
-            "调用后 add esp, 12（不是 8）",
-            "函数体用两次比较求最大值",
-            "返回值从 EAX 取回并存进 answer",
+        "blanks": [
+            {"accept": ["jge checkc", "jg checkc"],
+             "hint": "EAX 已经 >= b 就跳到检查 c 那步。",
+             "why": "jge checkC —— 有符号比较，且标签是函数体里的 checkC。"},
+            {"accept": ["push a"],
+             "hint": "三个参数从右往左压，最后压的是第一个参数。",
+             "why": "push a —— __cdecl 从右到左：先 c、再 b、最后 a，"
+                    "这样 a 离栈顶最近，落在 [ebp+8]。"},
+            {"accept": ["add esp, 12"],
+             "hint": "三个参数，每个 4 字节，谁清栈？",
+             "why": "add esp, 12 —— 三个参数共 12 字节。"
+                    "这是这个 lab 最常见的错：写成 8。"},
         ],
+        "note": "参数从右往左压，调用方负责清栈（__cdecl）。"
+                "函数体内不用管 [ebp+8]，直接写变量名，偏移编译器替你算。",
     },
     {
         "key": "min_max_ptr",
         "title": "用指针返回两个结果",
         "level": "hard",
-        "lab": "Lab 04 · Task 2",
-        "brief": "实现 minMax(a, b, lo, hi)：把较小的写进 *lo，较大的写进 *hi。"
+        "source": "Lab 04 · Task 2",
+        "brief": "实现 minMax(a, b, lo, hi)：较小的写进 *lo，较大的写进 *hi。"
                  "EAX 只能带回一个值，所以另一个必须通过指针写出去。",
-        "decls": "int lo = 0, hi = 0;\n\nvoid minMax(int a, int b, int* lo, int* hi)\n{\n    _asm {\n        \n    }\n}",
-        "starter": "_asm {\n    \n}",
-        "hints": [
-            "先 mov eax, a / mov edx, b，再用 cmp 比一次。",
-            "如果顺序反了，xchg eax, edx 一条指令就能交换。",
-            "写回用方括号：mov [ebx], eax 才是「写到那个地址」，没有方括号只是改指针本身。",
-            "用了 EBX 就要 push / pop，而且 pop 必须在所有分支汇合之后。",
+        "decls": """int lo = 0, hi = 0;
+
+void minMax(int a, int b, int* lo, int* hi)
+{
+    _asm {
+        // 见下方
+    }
+}""",
+        "parts": [{
+            "label": "",
+            "lines": [
+                "push    ebx",
+                "mov     eax, a",
+                "mov     edx, b",
+                "cmp     eax, edx",
+                BLANK,
+                "xchg    eax, edx",
+                "inOrder:",
+                "mov     ebx, lo",
+                BLANK,
+                "mov     ebx, hi",
+                BLANK,
+                "pop     ebx",
+            ],
+        }],
+        "blanks": [
+            {"accept": ["jle inorder"],
+             "hint": "a <= b 时已经是有序的，不用交换。",
+             "why": "jle inOrder —— 有符号的「小于等于」。"
+                    "相等也算有序，所以必须带等号。"},
+            {"accept": ["mov [ebx], eax", "mov dword ptr [ebx], eax"],
+             "hint": "把较小的写到 lo 指向的地址。",
+             "why": "mov [ebx], eax —— 方括号表示「写到那个地址」。"
+                    "漏掉方括号就变成改指针本身，*lo 根本没写进去。"},
+            {"accept": ["mov [ebx], edx", "mov dword ptr [ebx], edx"],
+             "hint": "同一套写法，把较大的写到 hi。",
+             "why": "mov [ebx], edx —— EDX 此时是较大的那个。"},
         ],
-        "reference": (
-            "_asm {\n"
-            "    push    ebx\n"
-            "    mov     eax, a\n"
-            "    mov     edx, b\n"
-            "    cmp     eax, edx\n"
-            "    jle     inOrder           // a <= b，已经是有序的\n"
-            "    xchg    eax, edx\n"
-            "inOrder:                      // eax = 小的，edx = 大的\n"
-            "    mov     ebx, lo\n"
-            "    mov     [ebx], eax        // *lo = 小的\n"
-            "    mov     ebx, hi\n"
-            "    mov     [ebx], edx        // *hi = 大的\n"
-            "    pop     ebx\n"
-            "}"
-        ),
-        "checklist": [
-            "用方括号写回（mov [ebx], eax），不是改指针",
-            "两个指针参数都写了",
-            "用了 EBX 并且恢复",
-            "相等的情况（a == b）也对",
-        ],
+        "note": "EAX 只能带回一个返回值，第二个结果只能「写出去」——"
+                "这就是指针参数的用处。方括号是这里最容易漏的东西。",
     },
 ]
 
-# 第二批：自编题（不照搬 lab，但知识点严格限定在课程已覆盖的指令内）
-# 单独放一个文件，加题时不用动这份 lab 题
+# 自编题（第二批）在另一个文件，这里合并
 from .asm_extra import EXTRA_TASKS  # noqa: E402
 
 ASM_TASKS.extend(EXTRA_TASKS)
@@ -386,5 +438,13 @@ ASM_TASK_MAP = {t["key"]: t for t in ASM_TASKS}
 
 
 def public_task(t: dict) -> dict:
-    """给前端的版本：去掉参考答案（提交后才给看）。"""
-    return {k: v for k, v in t.items() if k != "reference"}
+    """给前端的版本：去掉 accept 里的标准答案（提交前不该看到）。"""
+    out = {k: v for k, v in t.items() if k != "blanks"}
+    out["blanks"] = [{"hint": b.get("hint", ""), "why": b.get("why", "")}
+                     for b in t["blanks"]]
+    return out
+
+
+def answer_key(t: dict) -> list:
+    """逐空的答案：{accept: [...]}，只在提交后返回给前端。"""
+    return [{"accept": b.get("accept", [])} for b in t["blanks"]]
