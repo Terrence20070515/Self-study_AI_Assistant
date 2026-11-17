@@ -157,7 +157,10 @@ label.btn { display: inline-flex; align-items: center; }
 .course-header { display: flex; justify-content: space-between; align-items: flex-start; margin-bottom: 18px; }
 .course-header h1 { font-size: 20px; font-weight: 700; }
 .course-sub { color: var(--text-2); font-size: 12px; margin-top: 4px; }
-.course-actions { display: flex; gap: 8px; }
+/* 页头右上角的动作区：返回永远在最右、永远顶端对齐。
+   AI 出题那页有个下拉框（35px），不设 align-items 会被 stretch 拉成 35px，
+   和其他页面的 34px 差 1px —— 用户不一定看得出来，但没必要留着。 */
+.course-actions { display: flex; gap: 8px; align-items: center; }
 
 /* 面板 */
 .panel {

@@ -57,6 +57,7 @@ async function renderDashboard() {
 
 $("#btn-overview").onclick = guard("打开主页", showHome);
 $("#btn-import").onclick = guard("打开批量导入", () => { courseState.currentId = null; showView("import"); });
+$("#btn-back-import").onclick = () => showHome();
 $("#brand-home").onclick = guard("打开主页", showHome);
 
 

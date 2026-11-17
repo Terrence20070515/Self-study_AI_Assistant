@@ -4,7 +4,7 @@
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
 <title>Self-Learning Space</title>
-<link rel="stylesheet" href="main.css?v=20261119f">
+<link rel="stylesheet" href="main.css?v=20261119g">
 </head>
 <body>
 <div class="layout">
@@ -108,6 +108,9 @@
       <header class="course-header">
         <div><h1>批量导入</h1>
           <div class="course-sub">上传包含多个课程文件的 zip 压缩包，按文件名中的课程代码（如 CPT203）自动归类建课</div></div>
+        <div class="course-actions">
+          <button id="btn-back-import" class="btn btn-ghost">← 返回</button>
+        </div>
       </header>
       <section class="panel">
         <div id="drop-zone" class="drop-zone">
@@ -139,6 +142,7 @@
         </div>
         <div class="course-actions">
           <select id="quiz-course-select" class="input quiz-course-pick" title="选择要出题的课程"></select>
+          <button id="btn-back-quiz" class="btn btn-ghost">← 返回</button>
         </div>
       </header>
         <!-- 未完成的练习：按出题批次归档，退出后还能整批接着做 -->
@@ -354,6 +358,7 @@
         </div>
         <div class="course-actions">
           <button id="btn-edit-course" class="btn btn-ghost">编辑</button>
+          <button id="btn-back-course" class="btn btn-ghost">← 返回</button>
         </div>
       </header>
 
@@ -453,7 +458,7 @@
       <header class="course-header">
         <div><h1>待办事项</h1>
           <div class="course-sub">默认按 DDL 升序，最近要交的排在最上</div></div>
-        <div class="panel-tools">
+        <div class="course-actions">
           <button id="todo-sort" class="btn btn-ghost">排序：按 DDL</button>
           <button id="btn-back-todo" class="btn btn-ghost">← 返回</button>
         </div>
@@ -475,7 +480,9 @@
       <header class="course-header">
         <div><h1>资料总库</h1>
           <div class="course-sub">全部课程（含未分类）的资料都在这里，标签、搜索、导出、删除与课程内一致</div></div>
-        <button id="btn-back-library" class="btn btn-ghost">← 返回</button>
+        <div class="course-actions">
+          <button id="btn-back-library" class="btn btn-ghost">← 返回</button>
+        </div>
       </header>
       <section class="panel">
         <div class="panel-head">
@@ -511,7 +518,9 @@
       <header class="course-header">
         <div><h1>均分计算</h1>
           <div class="course-sub">HandBook 上传后 AI 扫描考核构成作预填，学分、权重、小分均可手工修改；专业课按学分加权</div></div>
-        <button id="btn-back-grade" class="btn btn-ghost">← 返回</button>
+        <div class="course-actions">
+          <button id="btn-back-grade" class="btn btn-ghost">← 返回</button>
+        </div>
       </header>
       <section class="panel">
         <div class="grade-overall">
@@ -527,7 +536,9 @@
     <div id="recycle-view" class="course-view hidden">
       <header class="course-header">
         <div><h1>回收区</h1><div class="course-sub">已删除的资料，可恢复或彻底清除</div></div>
-        <button id="btn-back-recycle" class="btn btn-ghost">← 返回</button>
+        <div class="course-actions">
+          <button id="btn-back-recycle" class="btn btn-ghost">← 返回</button>
+        </div>
       </header>
       <section class="panel">
         <div class="panel-head">
@@ -822,16 +833,16 @@
     }, 3000);
   });
 </script>
-<script src="core.js?v=20261119f"></script>
-  <script src="views-home.js?v=20261119f"></script>
-  <script src="views-course.js?v=20261119f"></script>
-  <script src="views-quiz.js?v=20261119f"></script>
-  <script src="views-quizpage.js?v=20261119f"></script>
-  <script src="views-asm.js?v=20261119f"></script>
-  <script src="views-wrong.js?v=20261119f"></script>
-  <script src="views-map.js?v=20261119f"></script>
-  <script src="views-cheat.js?v=20261119f"></script>
-  <script src="views-tools.js?v=20261119f"></script>
-  <script src="main.js?v=20261119f"></script>
+<script src="core.js?v=20261119g"></script>
+  <script src="views-home.js?v=20261119g"></script>
+  <script src="views-course.js?v=20261119g"></script>
+  <script src="views-quiz.js?v=20261119g"></script>
+  <script src="views-quizpage.js?v=20261119g"></script>
+  <script src="views-asm.js?v=20261119g"></script>
+  <script src="views-wrong.js?v=20261119g"></script>
+  <script src="views-map.js?v=20261119g"></script>
+  <script src="views-cheat.js?v=20261119g"></script>
+  <script src="views-tools.js?v=20261119g"></script>
+  <script src="main.js?v=20261119g"></script>
 </body>
 </html>

@@ -207,6 +207,8 @@ $("#btn-edit-course").onclick = () => {
   const c = courseState.list.find(x => x.id === courseState.currentId);
   if (c && c.code !== "UNFILED") openEditModal(c);
 };
+// 课程页的「← 返回」：回主页。所有页面的返回都在页头右上角同一位置
+$("#btn-back-course").onclick = () => showHome();
 
 $("#btn-save-course").onclick = async () => {
   const code = $("#course-code").value.trim();

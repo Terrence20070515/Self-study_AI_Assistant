@@ -825,3 +825,6 @@ $("#btn-guide").onclick = async () => {
   appendMsg("user", "请求 AI 导学…");
   await runChat({ question: "", mode: "guide" });
 };
+
+// 出题页的「← 返回」：回主页。放在这里是因为 quiz-view 的绑定都在这附近
+$("#btn-back-quiz").onclick = () => showHome();

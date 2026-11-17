@@ -68,6 +68,7 @@ async function loadQuizPage() {
 async function openQuizPage(courseId) {
   if (courseId) quizState.courseId = courseId;
   showView("quiz");
+  // 页头「← 返回」统一回主页（和资料总库 / 错题本 / 均分计算一致）
   await loadQuizPage();
 }
 
