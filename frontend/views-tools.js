@@ -403,6 +403,7 @@ const imm = { mid: null, courseId: null, doc: null, page: 1, total: 0,
               lang: "zh", scale: 1, fitWidth: true };
 
 async function openImmersive(m, startPage = 0) {   // startPage=0 表示接着上次读
+  clearTimeout(immPrefetchTimer); immPrefetch = null;   // 别把上一份的位图贴到这一份上
   Object.assign(imm, { mid: m.id, courseId: m.course_id, doc: null, page: startPage,
                        total: 0, notes: {}, status: null, editing: false,
                        lang: immLangPref(),
@@ -462,6 +463,9 @@ function closeImmersive() {
   inkFlush();
   $("#immersive").classList.add("hidden");
   imm.doc = null;
+  // 预取的位图属于这份文档，留着只会占内存，也可能贴到下一份文档上
+  clearTimeout(immPrefetchTimer);
+  immPrefetch = null;
 }
 $("#imm-close").onclick = closeImmersive;
 
@@ -638,14 +642,60 @@ async function renderImmPage() {
     canvas.height = Math.round(viewport.height * dpr);
     canvas.style.width = viewport.width + "px";
     canvas.style.height = viewport.height + "px";
-    await page.render({ canvasContext: canvas.getContext("2d"), viewport, transform: [dpr, 0, 0, dpr, 0, 0] }).promise;
+
+    // 预取的下一页能直接用就贴上去：省掉一次 pdf.js 渲染（大页能省一两百毫秒）。
+    // 尺寸/缩放/dpr 任何一项不符就不用 —— 贴错会得到一张糊图或错位的图。
+    const hit = immPrefetch && immPrefetch.page === imm.page
+      && immPrefetch.dpr === dpr
+      && Math.abs(immPrefetch.scale - scale) < 0.005
+      && immPrefetch.canvas.width === canvas.width
+      && immPrefetch.canvas.height === canvas.height;
+    if (hit) {
+      canvas.getContext("2d").drawImage(immPrefetch.canvas, 0, 0);
+      immPrefetch = null;
+    } else {
+      await page.render({ canvasContext: canvas.getContext("2d"), viewport, transform: [dpr, 0, 0, dpr, 0, 0] }).promise;
+    }
     $("#imm-page-input").value = imm.page;
     inkAfterRender();                    // 尺寸变了，标注层跟着对齐重绘
     renderTextLayer(page, viewport);     // 文本层：让位图上的文字可选中复制
     markOutline($("#imm-toc-list"), imm.page);   // 目录高亮跟着翻页走
     saveProgress(imm.mid, imm.page);      // 进度统一存服务端，主页「继续上次」读它
     renderImmNote();
+    scheduleImmPrefetch(scale, dpr);
   } finally { immRendering = false; }
+}
+
+// ---------- 预取下一页 ----------
+// 顺序读时下一页几乎必看，提前渲好放在离屏 canvas 里，翻页直接贴。
+// 延迟 300ms 再开始，避免快速连翻时白渲一堆中间页。
+let immPrefetch = null;
+let immPrefetchTimer = null;
+
+function scheduleImmPrefetch(scale, dpr) {
+  clearTimeout(immPrefetchTimer);
+  const next = imm.page + 1;
+  if (!imm.doc || next > (imm.total || 0)) return;
+  immPrefetchTimer = setTimeout(() => {
+    if (!imm.doc || imm.page + 1 !== next) return;    // 期间翻过页了，别追了
+    immPrefetchPage(next, scale, dpr);
+  }, 300);
+}
+
+async function immPrefetchPage(pageNo, scale, dpr) {
+  try {
+    const page = await imm.doc.getPage(pageNo);
+    if (imm.page === pageNo) return;                  // 已经翻过去了，预取无意义
+    const viewport = page.getViewport({ scale });
+    const cv = document.createElement("canvas");
+    cv.width = Math.round(viewport.width * dpr);
+    cv.height = Math.round(viewport.height * dpr);
+    await page.render({
+      canvasContext: cv.getContext("2d"), viewport, transform: [dpr, 0, 0, dpr, 0, 0],
+    }).promise;
+    if (imm.page >= pageNo) return;                   // 渲染期间翻超过来了
+    immPrefetch = { page: pageNo, scale, dpr, canvas: cv };
+  } catch (e) { /* 预取失败不影响正常翻页 */ }
 }
 
 // ---------- 沉浸模式缩放：触控板捏合 / ±按钮 / 适应宽度 ----------
