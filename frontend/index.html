@@ -4,7 +4,7 @@
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
 <title>Self-Learning Space</title>
-<link rel="stylesheet" href="main.css?v=20261117c">
+<link rel="stylesheet" href="main.css?v=20261118a">
 </head>
 <body>
 <div class="layout">
@@ -43,6 +43,7 @@
             <div class="dash-nav">
               <button id="dash-lib" class="btn btn-outline dash-entry">资料总库</button>
               <button id="dash-quiz" class="btn btn-outline dash-entry">AI 出题</button>
+              <button id="dash-wrong" class="btn btn-outline dash-entry">错题本</button>
               <button id="dash-grades" class="btn btn-outline dash-entry">均分计算</button>
             </div>
           </div>
@@ -230,6 +231,20 @@
           <div id="asm-result" class="asm-result"></div>
         </section>
       </div>
+    </div>
+
+    <!-- 错题本：跨课程汇总「最近一次仍答错」的题，按课程→资料分组 -->
+    <div id="wrong-view" class="course-view hidden">
+      <header class="course-header">
+        <div>
+          <h1>错题本 <span class="wb-tag" id="wb-total"></span></h1>
+          <div class="course-sub">只列「最近一次作答仍然错」的题；重做答对就自动移出</div>
+        </div>
+        <div class="course-actions">
+          <button id="btn-wrong-back" class="btn btn-ghost">← 返回</button>
+        </div>
+      </header>
+      <div id="wb-body" class="wb-body"></div>
     </div>
 
     <div id="course-view" class="course-view hidden">
@@ -654,13 +669,14 @@
     }, 3000);
   });
 </script>
-<script src="core.js?v=20261117c"></script>
-  <script src="views-home.js?v=20261117c"></script>
-  <script src="views-course.js?v=20261117c"></script>
-  <script src="views-quiz.js?v=20261117c"></script>
-  <script src="views-quizpage.js?v=20261117c"></script>
-  <script src="views-asm.js?v=20261117c"></script>
-  <script src="views-tools.js?v=20261117c"></script>
-  <script src="main.js?v=20261117c"></script>
+<script src="core.js?v=20261118a"></script>
+  <script src="views-home.js?v=20261118a"></script>
+  <script src="views-course.js?v=20261118a"></script>
+  <script src="views-quiz.js?v=20261118a"></script>
+  <script src="views-quizpage.js?v=20261118a"></script>
+  <script src="views-asm.js?v=20261118a"></script>
+  <script src="views-wrong.js?v=20261118a"></script>
+  <script src="views-tools.js?v=20261118a"></script>
+  <script src="main.js?v=20261118a"></script>
 </body>
 </html>

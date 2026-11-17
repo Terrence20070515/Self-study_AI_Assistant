@@ -844,6 +844,71 @@ def quiz_stats(course_id: str) -> dict:
     }
 
 
+# ---------- 错题本（跨课程） ----------
+
+def _question_page(q: dict) -> int | None:
+    """这道题对应资料的哪一页。unit_key 形如 `<material_id>#p14`。"""
+    m = re.search(r"#p(\d+)", q.get("unit_key") or "")
+    if m:
+        return int(m.group(1))
+    for r in (q.get("refs") or []):
+        if isinstance(r, dict) and r.get("n"):
+            try:
+                return int(r["n"])
+            except (TypeError, ValueError):
+                pass
+    return None
+
+
+def _question_material(q: dict) -> tuple[str, str]:
+    """(material_id, 资料名)。refs 里带着出处，比 unit_key 更全。"""
+    mid = (q.get("unit_key") or "").split("#")[0].strip()
+    for r in (q.get("refs") or []):
+        if isinstance(r, dict) and r.get("material_id"):
+            return (mid or str(r["material_id"])), (r.get("orig_name") or "")
+    return mid or "", ""
+
+
+def list_wrong_all(limit_per_course: int = 300) -> list[dict]:
+    """全部课程的错题，按「课程 → 资料」分组。
+
+    判定沿用 list_wrong_questions：**最近一次作答仍错**。答对一次就从这里消失，
+    所以它是「待解决清单」而不是历史台账 —— 重做对了自然会掉出列表。
+    """
+    out = []
+    for co in list_courses():
+        qs = list_wrong_questions(co["id"], limit=limit_per_course)
+        if not qs:
+            continue
+        # 一次取出本课资料的 ext：前端点「去原文」要按 ext 选阅读器
+        with _conn() as c:
+            ext_of = {r["id"]: r["ext"] for r in c.execute(
+                "SELECT id, ext FROM materials WHERE course_id=?", (co["id"],)).fetchall()}
+        buckets: dict[str, dict] = {}
+        for q in qs:
+            mid, name = _question_material(q)
+            page = _question_page(q)
+            b = buckets.setdefault(mid, {"material_id": mid, "orig_name": name,
+                                         "ext": ext_of.get(mid, "pdf"),
+                                         "page": page, "questions": []})
+            if not b["orig_name"] and name:
+                b["orig_name"] = name
+            if b["page"] is None and page is not None:
+                b["page"] = page
+            b["questions"].append({
+                "id": q["id"], "kind": q.get("kind"), "level": q.get("level"),
+                "question": q.get("question"), "options": q.get("options") or [],
+                "answer": q.get("answer"), "explanation": q.get("explanation"),
+                "user_answer": q.get("user_answer"), "answered_at": q.get("answered_at"),
+                "attempts": q.get("attempts"), "page": page, "material_id": mid,
+            })
+        mats = sorted(buckets.values(), key=lambda x: -len(x["questions"]))
+        out.append({"course_id": co["id"], "course_code": co["code"],
+                    "course_name": co["name"], "count": len(qs), "materials": mats})
+    out.sort(key=lambda x: -x["count"])
+    return out
+
+
 # ---------- 成绩构成 ----------
 
 def list_assessments(course_id: str):

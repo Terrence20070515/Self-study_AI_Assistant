@@ -185,3 +185,14 @@ def api_wrong(cid: str):
 def api_quiz_stats(cid: str):
     course_or_404(cid)
     return store.quiz_stats(cid)
+
+
+@router.get("/api/wrongbook")
+def api_wrongbook():
+    """错题本：**跨课程**汇总，按「课程 → 资料」分组。
+
+    和上面的单课 `/quiz/wrong` 的区别：那个是给「出题流程里的一轮重练」用的，
+    答完就散；这个是长期清单，能看到错题集中在哪份资料的哪几页。
+    """
+    groups = store.list_wrong_all()
+    return {"total": sum(g["count"] for g in groups), "groups": groups}

@@ -1019,3 +1019,74 @@ label.btn { display: inline-flex; align-items: center; }
   .asm-list-head { width: 100%; padding-bottom: 4px; }
   .asm-item { width: auto; }
 }
+
+/* ===== 错题本 ===== */
+.wb-tag { font-size: 11px; font-weight: 400; color: var(--text-2); margin-left: 8px; letter-spacing: .3px; }
+.wb-body { display: flex; flex-direction: column; gap: 18px; }
+.wb-empty { color: var(--text-2); font-size: 12.5px; line-height: 1.9; padding: 26px 2px; }
+
+.wb-course { display: flex; flex-direction: column; gap: 10px; }
+.wb-course-head {
+  display: flex; align-items: baseline; gap: 10px;
+  padding-bottom: 6px; border-bottom: 1px solid var(--border);
+}
+.wb-course-head b { font-size: 14px; letter-spacing: .3px; }
+.wb-course-head span { font-size: 11.5px; }
+.wb-count { margin-left: auto; color: var(--warn-fg); font-weight: 600; }
+
+.wb-mat {
+  border: 1px solid var(--border); border-radius: 10px; overflow: hidden;
+  background: var(--bg);
+}
+.wb-mat-head {
+  display: flex; align-items: baseline; gap: 10px;
+  padding: 9px 14px; background: var(--pre-bg);
+  border-bottom: 1px solid var(--border);
+}
+.wb-mat-head b { font-size: 12.5px; font-weight: 600; }
+.wb-mat-head span { font-size: 11px; color: var(--text-2); margin-left: auto; white-space: nowrap; }
+
+.wb-q { padding: 14px; border-bottom: 1px solid var(--border); }
+.wb-q:last-child { border-bottom: none; }
+.wb-q.resolved { opacity: .45; }
+
+.wb-q-text { font-size: 13px; line-height: 1.75; margin-bottom: 10px; }
+
+.wb-opts { display: flex; flex-direction: column; gap: 5px; }
+.wb-opt {
+  display: flex; align-items: flex-start; gap: 9px; width: 100%; text-align: left;
+  padding: 7px 10px; border: 1px solid var(--border); border-radius: 7px;
+  background: transparent; color: var(--text);
+  font-size: 12.5px; line-height: 1.6; font-family: inherit;
+}
+.wb-opt i { font-style: normal; color: var(--text-2); font-weight: 600; flex: 0 0 12px; }
+.wb-opt span { flex: 1; }
+.wb-opt em { font-style: normal; font-size: 10.5px; color: var(--text-2); white-space: nowrap; }
+.wb-opt.right { border-color: var(--ok); background: var(--ok-weak); }
+.wb-opt.right em { color: var(--ok); }
+.wb-opt.wrong { border-color: var(--danger); background: var(--danger-weak); }
+.wb-opt.wrong em { color: var(--danger); }
+button.wb-pick { cursor: pointer; }
+button.wb-pick:hover { border-color: var(--accent); background: var(--accent-weak); }
+button.wb-pick:disabled { cursor: default; opacity: .75; }
+
+.wb-short { font-size: 12.5px; color: var(--text-2); padding: 6px 0; }
+.wb-meta { display: flex; gap: 14px; flex-wrap: wrap; margin-top: 9px; font-size: 11.5px; color: var(--text-2); }
+.wb-meta b { font-weight: 600; }
+.wb-meta .ok { color: var(--ok); }
+.wb-meta .bad { color: var(--danger); }
+
+.wb-exp { margin-top: 9px; }
+.wb-exp summary {
+  cursor: pointer; font-size: 11.5px; color: var(--accent); list-style: none;
+}
+.wb-exp summary::-webkit-details-marker { display: none; }
+.wb-exp p {
+  margin: 8px 0 0; padding: 9px 12px; border-radius: 7px;
+  background: var(--pre-bg); font-size: 12.5px; line-height: 1.8;
+}
+
+.wb-actions { display: flex; gap: 8px; margin-top: 10px; }
+.wb-tip { margin-top: 8px; font-size: 11.5px; color: var(--text-2); line-height: 1.6; }
+.wb-tip .ok { color: var(--ok); }
+.wb-tip .bad { color: var(--danger); }
