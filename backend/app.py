@@ -35,21 +35,6 @@ for _router in (courses.router, materials.router, notes.router,
     app.include_router(_router)
 
 
-# ---------- 本地扩展路由 ----------
-# 个人机器上的附加功能放在 backend/local_*.py，文件存在才加载，不存在就跳过。
-# 这类文件不进版本控制（见 .git/info/exclude），公开仓库里看不到它们。
-import importlib as _importlib
-import pathlib as _pathlib
-
-for _p in sorted(_pathlib.Path(__file__).parent.glob("local_*.py")):
-    try:
-        _mod = _importlib.import_module(f".{_p.stem}", __package__)
-        if hasattr(_mod, "router"):
-            app.include_router(_mod.router)
-    except Exception as _e:                      # 扩展坏了不能拖垮主应用
-        print(f"[local] {_p.name} 加载失败：{_e}", flush=True)
-
-
 # ---------- 前端静态资源（必须最后挂载，避免吞掉 /api 路由）----------
 
 frontend_dir = os.path.join(os.path.dirname(os.path.dirname(os.path.abspath(__file__))), "frontend")

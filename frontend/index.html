@@ -4,7 +4,7 @@
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
 <title>Self-Learning Space</title>
-<link rel="stylesheet" href="main.css?v=20261117d">
+<link rel="stylesheet" href="main.css?v=20261117c">
 </head>
 <body>
 <div class="layout">
@@ -654,28 +654,13 @@
     }, 3000);
   });
 </script>
-<script src="core.js?v=20261117d"></script>
-  <script src="views-home.js?v=20261117d"></script>
-  <script src="views-course.js?v=20261117d"></script>
-  <script src="views-quiz.js?v=20261117d"></script>
-  <script src="views-quizpage.js?v=20261117d"></script>
-  <script src="views-asm.js?v=20261117d"></script>
-  <script src="views-tools.js?v=20261117d"></script>
-  <script src="main.js?v=20261117d"></script>
-  <script>
-    // 本地扩展脚本：若 local-extensions.json 存在，按其中列表加载。
-    // 这些文件不纳入版本控制（见 .git/info/exclude），缺失时静默跳过，
-    // 所以公开仓库里不会出现它们，也不影响任何人正常使用。
-    fetch("local-extensions.json", { cache: "no-store" })
-      .then((r) => (r.ok ? r.json() : []))
-      .then((list) => (Array.isArray(list) ? list : []).forEach((src) => {
-        const s = document.createElement("script");
-        s.src = src + "?v=" + Date.now();
-        s.async = false;
-        s.onerror = () => s.remove();
-        document.body.appendChild(s);
-      }))
-      .catch(() => {});
-  </script>
+<script src="core.js?v=20261117c"></script>
+  <script src="views-home.js?v=20261117c"></script>
+  <script src="views-course.js?v=20261117c"></script>
+  <script src="views-quiz.js?v=20261117c"></script>
+  <script src="views-quizpage.js?v=20261117c"></script>
+  <script src="views-asm.js?v=20261117c"></script>
+  <script src="views-tools.js?v=20261117c"></script>
+  <script src="main.js?v=20261117c"></script>
 </body>
 </html>
