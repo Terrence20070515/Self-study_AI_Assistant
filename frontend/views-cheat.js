@@ -18,7 +18,7 @@ function openCheat() {
   renderCheatCoursePicker();
   const hasCourse = !!cheatState.courseId;
   // 「换课程」只在已经有课程时才有意义 —— 选课页本身就是在换课程
-  $("#cheat-actions").classList.toggle("hidden", !hasCourse);
+  $("#cheat-switch").classList.toggle("hidden", !hasCourse);
   if (hasCourse) {
     $("#cheat-pick").classList.add("hidden");
     $("#cheat-panel").classList.remove("hidden");
@@ -44,7 +44,7 @@ async function renderCheatCoursePicker() {
       cheatState.course = c;
       $("#cheat-pick").classList.add("hidden");
       $("#cheat-panel").classList.remove("hidden");
-      $("#cheat-actions").classList.remove("hidden");
+      $("#cheat-switch").classList.remove("hidden");
       loadCheat(c.id);
     };
     box.appendChild(btn);
@@ -196,12 +196,13 @@ async function addCheatItem(section) {
 }
 
 $("#dash-cheat").onclick = guard("打开速查表", openCheat);
+$("#cheat-back").onclick = () => showHome();
 $("#cheat-switch").onclick = guard("换课程", () => {
   cheatState.courseId = null;
   cheatState.items = [];
   $("#cheat-panel").classList.add("hidden");
   $("#cheat-pick").classList.remove("hidden");
-  $("#cheat-actions").classList.add("hidden");
+  $("#cheat-switch").classList.add("hidden");
   renderCheatCoursePicker();
 });
 $("#cheat-add").onclick = guard("加一条", () => addCheatItem("terms"));

@@ -4,7 +4,7 @@
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
 <title>Self-Learning Space</title>
-<link rel="stylesheet" href="main.css?v=20261119e">
+<link rel="stylesheet" href="main.css?v=20261119f">
 </head>
 <body>
 <div class="layout">
@@ -269,11 +269,11 @@
           <h1>速查表 <span class="wb-tag" id="cheat-title"></span></h1>
           <div class="course-sub">选课 → 勾资料生成 → 随手改 → 导出 PDF。每条都能跳回原文那一页</div>
         </div>
-        <!-- 没选课程时这两个动作都没有意义：先藏起来，选课后才出现；
-             导出 PDF 还要等速查表真的有内容（空表导出只会得到一张白纸） -->
-        <div class="course-actions hidden" id="cheat-actions">
+        <!-- 返回一直在；换课程选课后才有意义；导出要等速查表真有内容 -->
+        <div class="course-actions">
           <button id="cheat-pdf" class="btn btn-outline hidden">导出 PDF</button>
-          <button id="cheat-switch" class="btn btn-ghost">← 换课程</button>
+          <button id="cheat-switch" class="btn btn-ghost hidden">换课程</button>
+          <button id="cheat-back" class="btn btn-ghost">← 返回</button>
         </div>
       </header>
 
@@ -303,8 +303,9 @@
           <h1>知识图 <span class="wb-tag" id="kg-title"></span></h1>
           <div class="course-sub">拖动节点摆位置 · 双击改文字 · 点一下跳到原文那一页 · 连线要先选类型</div>
         </div>
-        <div class="course-actions hidden" id="kg-actions">
-          <button id="kg-switch" class="btn btn-ghost">← 换课程</button>
+        <div class="course-actions">
+          <button id="kg-switch" class="btn btn-ghost hidden">换课程</button>
+          <button id="kg-back" class="btn btn-ghost">← 返回</button>
         </div>
       </header>
 
@@ -821,16 +822,16 @@
     }, 3000);
   });
 </script>
-<script src="core.js?v=20261119e"></script>
-  <script src="views-home.js?v=20261119e"></script>
-  <script src="views-course.js?v=20261119e"></script>
-  <script src="views-quiz.js?v=20261119e"></script>
-  <script src="views-quizpage.js?v=20261119e"></script>
-  <script src="views-asm.js?v=20261119e"></script>
-  <script src="views-wrong.js?v=20261119e"></script>
-  <script src="views-map.js?v=20261119e"></script>
-  <script src="views-cheat.js?v=20261119e"></script>
-  <script src="views-tools.js?v=20261119e"></script>
-  <script src="main.js?v=20261119e"></script>
+<script src="core.js?v=20261119f"></script>
+  <script src="views-home.js?v=20261119f"></script>
+  <script src="views-course.js?v=20261119f"></script>
+  <script src="views-quiz.js?v=20261119f"></script>
+  <script src="views-quizpage.js?v=20261119f"></script>
+  <script src="views-asm.js?v=20261119f"></script>
+  <script src="views-wrong.js?v=20261119f"></script>
+  <script src="views-map.js?v=20261119f"></script>
+  <script src="views-cheat.js?v=20261119f"></script>
+  <script src="views-tools.js?v=20261119f"></script>
+  <script src="main.js?v=20261119f"></script>
 </body>
 </html>
