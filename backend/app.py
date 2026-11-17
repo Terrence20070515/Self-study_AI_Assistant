@@ -5,6 +5,7 @@
     materials 资料上传阅读导出 / 回收区 / 跨课程总库 / 批量导入
     notes     沉浸模式逐页注释
     chat      问答与出题（流式）
+    kmap      知识图（节点 / 连线 / AI 起草原图）
     todos     待办事项
     settings  设置与健康检查
 """
@@ -14,7 +15,7 @@ from fastapi import FastAPI
 from fastapi.staticfiles import StaticFiles
 
 from . import store
-from .routers import asm, chat, courses, materials, notes, settings, todos
+from .routers import asm, chat, courses, kmap, materials, notes, settings, todos
 
 app = FastAPI(title="Self-Learning Space")
 store.init_db()
@@ -31,7 +32,7 @@ async def no_cache_frontend(request, call_next):
 
 
 for _router in (courses.router, materials.router, notes.router,
-                chat.router, asm.router, todos.router, settings.router):
+                chat.router, kmap.router, asm.router, todos.router, settings.router):
     app.include_router(_router)
 
 

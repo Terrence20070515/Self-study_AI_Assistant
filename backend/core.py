@@ -1857,3 +1857,126 @@ def _guide_context(course_id: str, per_material: int = 6, max_chars: int = 12000
             if total > max_chars:
                 return results
     return results
+
+
+# ---------- 知识图：AI 起草原图 ----------
+# 只负责「起个草」，之后这张图归用户维护（拖动 / 改字 / 增删都在前端写库）。
+# 刻意不生成任何进度、正确率、页码统计 —— 用户明确说过那些对他没意义。
+
+MAP_PROMPT = (
+    "你在帮一个大学生把课件整理成一张概念图。\n"
+    "规则：\n"
+    "1. 每份资料给 5-8 个节点，最多 3 层（课程/主题 → 章节 → 知识点）。\n"
+    "2. 节点文字 6-14 个字，用名词短语，不要整句、不要「本页讲了…」这种描述。\n"
+    "3. 必须给出 page：该知识点主要出现在第几页（用我给的页码，不要编）。\n"
+    "4. parent 填父节点的下标（从 0 开始）；顶层主题的 parent 填 -1。\n"
+    "5. material 填该知识点来自第几份资料（下标从 0 开始）。\n"
+    "6. 不要输出目录页、封面、考核说明这类内容。\n"
+    "只输出 JSON：{\"nodes\":[{\"label\":\"…\",\"parent\":-1,\"page\":12,\"material\":0}]}\n"
+)
+
+
+def generate_map_draft(course_id: str, material_ids: list) -> dict:
+    """按所选资料生成一张草稿图（节点 + 层级），坐标在返回前算好。
+
+    - 每份资料最多取 18 页，均匀抽样：整本塞进去会超上下文，只取前几页又只看得到引言
+    - 返回的节点带 x/y，前端直接渲染，不需要再跑一次布局
+    """
+    cfg = load_config()
+    if not cfg.get("api_key"):
+        raise ValueError("还没配置 API Key")
+
+    units = build_knowledge_units(material_ids)
+    by_mat: dict[str, list] = {}
+    name_of: dict[str, str] = {}
+    for u in units:
+        by_mat.setdefault(u["material_id"], []).append(u)
+        name_of[u["material_id"]] = u.get("orig_name") or ""
+
+    blocks, used = [], []
+    for mid in material_ids:
+        us = by_mat.get(mid) or []
+        if not us:
+            continue
+        step = max(1, len(us) // 18)
+        sample = us[::step][:18]
+        idx = len(used)
+        used.append(mid)
+        body = "\n".join(f"p{u['page']}: {(u['text'] or '')[:260]}" for u in sample)
+        blocks.append(f"【资料 {idx}】{name_of.get(mid, '')}\n{body}")
+    if not blocks:
+        raise ValueError("所选资料还没有解析成功的正文")
+
+    prompt = MAP_PROMPT + "\n" + "\n\n".join(blocks)
+    resp = _client().chat.completions.create(
+        model=cfg["model"],
+        messages=[{"role": "user", "content": prompt}],
+        temperature=0.2,
+        max_tokens=2000,
+        response_format={"type": "json_object"},
+    )
+    data = json.loads(resp.choices[0].message.content or "{}")
+    raw = data.get("nodes") or []
+
+    clean = []
+    for n in raw:
+        label = str(n.get("label") or "").strip()[:60]
+        if not label:
+            continue
+        try:
+            page = int(n.get("page") or 0)
+        except (TypeError, ValueError):
+            page = 0
+        try:
+            mi = int(n.get("material") or 0)
+        except (TypeError, ValueError):
+            mi = 0
+        try:
+            parent = int(n.get("parent")) if n.get("parent") is not None else -1
+        except (TypeError, ValueError):
+            parent = -1
+        clean.append({
+            "label": label,
+            "page": max(0, page),
+            "material_id": used[mi] if 0 <= mi < len(used) else "",
+            "parent": parent if -1 <= parent < len(raw) else -1,
+        })
+    if not clean:
+        raise ValueError("模型没有给出可用的节点")
+
+    _layout_map(clean)
+    return {"nodes": clean, "materials": used}
+
+
+def _layout_map(nodes: list) -> None:
+    """给草稿节点算坐标：深度定 y，叶子顺序定 x。
+
+    前端只是把结果画出来；用户之后怎么拖都行，坐标会写回库里。
+    """
+    children: dict[int, list] = {}
+    for i, n in enumerate(nodes):
+        children.setdefault(n["parent"], []).append(i)
+
+    x_cursor = [0.0]
+    X_GAP, Y_GAP = 210.0, 130.0
+
+    def walk(idx: int, depth: int) -> float:
+        kids = children.get(idx, [])
+        if not kids:
+            x = x_cursor[0]
+            x_cursor[0] += X_GAP
+        else:
+            xs = [walk(k, depth + 1) for k in kids]
+            x = sum(xs) / len(xs)
+        nodes[idx]["x"] = round(x, 1)
+        nodes[idx]["y"] = round(120 + depth * Y_GAP, 1)
+        return x
+
+    for root in children.get(-1, []):
+        walk(root, 0)
+    # 没有根的节点（模型给了坏 parent）也不能丢：挂在最后一层
+    for i, n in enumerate(nodes):
+        if "x" not in n:
+            n["x"] = round(x_cursor[0], 1)
+            n["y"] = round(120 + Y_GAP * 2, 1)
+            x_cursor[0] += X_GAP

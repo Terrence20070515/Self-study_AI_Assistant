@@ -1241,3 +1241,106 @@ button.wb-pick:disabled { cursor: default; opacity: .75; }
 }
 .pomo-week-sum { display: block; color: var(--text); font-weight: 600; font-size: 11px; }
 .pomo-week-list { display: block; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+
+/* ===== 主页入口收到 6 个：等宽、字号降一档 ===== */
+/* 五个字以内都能放下；真折行了它会自己变高，不影响点击 */
+.dash-entry { padding: 15px 8px; font-size: 13px; letter-spacing: .2px; }
+.dash-nav { gap: 6px; }
+
+/* ===== 知识图 ===== */
+.kg-course-list { display: flex; flex-wrap: wrap; gap: 10px; }
+.kg-course-btn {
+  display: flex; flex-direction: column; gap: 3px; align-items: flex-start;
+  min-width: 168px; padding: 12px 14px; text-align: left; cursor: pointer;
+  background: var(--bg); border: 1px solid var(--border); border-radius: 10px;
+  color: var(--text); font-family: inherit;
+}
+.kg-course-btn:hover { border-color: var(--accent); background: var(--accent-weak); }
+.kg-course-btn b { font-size: 13px; letter-spacing: .4px; }
+.kg-course-btn span { font-size: 11.5px; color: var(--text-2); }
+
+.kg-kinds { display: inline-flex; gap: 4px; }
+.kg-hint {
+  margin: 0 0 8px; padding: 7px 12px; border-radius: 7px;
+  background: var(--accent-weak); color: var(--accent); font-size: 12px;
+}
+.kg-tools {
+  display: flex; align-items: center; gap: 8px; flex-wrap: wrap;
+  padding: 8px 10px; margin-bottom: 8px;
+  border: 1px solid var(--border); border-radius: 8px; background: var(--pre-bg);
+}
+.kg-sel-label {
+  font-size: 12px; font-weight: 600; max-width: 320px;
+  white-space: nowrap; overflow: hidden; text-overflow: ellipsis;
+}
+
+.kg-stage {
+  position: relative;
+  max-height: 62vh; overflow: auto;
+  border: 1px solid var(--border); border-radius: 10px;
+  background:
+    radial-gradient(circle, var(--border) 1px, transparent 1px) 0 0 / 22px 22px,
+    var(--bg);
+}
+#kg-svg { display: block; }
+.kg-empty {
+  position: absolute; inset: 0; display: flex; align-items: center; justify-content: center;
+  padding: 40px; text-align: center; font-size: 12.5px; color: var(--text-2);
+  line-height: 1.9; pointer-events: none;
+}
+
+.kg-node { cursor: grab; }
+.kg-node:active { cursor: grabbing; }
+.kg-node-box {
+  fill: var(--surface); stroke: var(--border); stroke-width: 1.4;
+  transition: stroke .12s ease, fill .12s ease;
+}
+.kg-node:hover .kg-node-box { stroke: var(--accent); }
+.kg-node.sel .kg-node-box { stroke: var(--accent); stroke-width: 2.2; fill: var(--accent-weak); }
+.kg-node.linking .kg-node-box { stroke: var(--warn-fg); stroke-width: 2.2; stroke-dasharray: 5 3; }
+.kg-node text { user-select: none; }
+
+.kg-label {
+  width: 100%; height: 100%;
+  display: flex; align-items: center; justify-content: center;
+  text-align: center; font-size: 12.5px; line-height: 1.35; color: var(--text);
+  overflow: hidden; word-break: break-word;
+}
+.kg-label-input {
+  width: 100%; height: 100%; box-sizing: border-box;
+  border: 1px solid var(--accent); border-radius: 5px;
+  background: var(--bg); color: var(--text);
+  font-family: inherit; font-size: 12.5px; text-align: center;
+  outline: none;
+}
+.kg-page-badge { font-size: 9.5px; fill: var(--text-2); }
+
+.kg-edge-line { fill: none; stroke: var(--border); stroke-width: 1.6; }
+.kg-edge-hit { fill: none; stroke: transparent; stroke-width: 14; cursor: pointer; }
+.kg-edge-hit:hover + .kg-edge-line { stroke: var(--danger); }
+.kg-edge-depends .kg-edge-line { stroke: var(--accent); stroke-dasharray: 6 4; }
+.kg-edge-contrast .kg-edge-line { stroke: var(--warn-fg); stroke-dasharray: 2 4; }
+.kg-edge-label {
+  font-size: 9.5px; fill: var(--text-2); text-anchor: middle;
+  paint-order: stroke; stroke: var(--bg); stroke-width: 3px;
+}
+
+.kg-draft-card { width: 560px; max-width: 86vw; }
+.kg-mat-list {
+  max-height: 46vh; overflow-y: auto;
+  border: 1px solid var(--border); border-radius: 8px; padding: 6px;
+}
+.kg-mat-row {
+  display: flex; align-items: center; gap: 8px;
+  padding: 5px 6px; border-radius: 6px; cursor: pointer;
+  font-size: 12px;
+}
+.kg-mat-row:hover { background: var(--accent-weak); }
+.kg-mat-row span {
+  flex: 1; min-width: 0; white-space: nowrap; overflow: hidden; text-overflow: ellipsis;
+}
+
+/* 「属于」是层级默认关系，满屏都写这两个字只是噪音：悬停时才显示 */
+.kg-edge-belongs .kg-edge-label { opacity: 0; }
+.kg-edge:hover .kg-edge-label { opacity: 1; }
+.kg-edge-label { transition: opacity .12s ease; }

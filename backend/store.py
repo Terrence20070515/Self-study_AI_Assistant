@@ -226,6 +226,36 @@ def init_db():
             )"""
         )
         c.execute("CREATE INDEX IF NOT EXISTS idx_focus_at ON focus_sessions(at)")
+        # 知识图：每门课一张，可长期维护。
+        # 节点位置存像素坐标（前端世界坐标），parent_id=0 表示根节点。
+        # AI 只负责起草原图，之后这张图是用户的 —— 拖动、改字、增删都直接写这里。
+        c.execute(
+            """CREATE TABLE IF NOT EXISTS kg_nodes(
+                id INTEGER PRIMARY KEY AUTOINCREMENT,
+                course_id TEXT NOT NULL,
+                label TEXT NOT NULL DEFAULT '',
+                material_id TEXT NOT NULL DEFAULT '',
+                page INTEGER NOT NULL DEFAULT 0,
+                parent_id INTEGER NOT NULL DEFAULT 0,
+                x REAL NOT NULL DEFAULT 0,
+                y REAL NOT NULL DEFAULT 0,
+                created_at REAL NOT NULL
+            )"""
+        )
+        c.execute("CREATE INDEX IF NOT EXISTS idx_kg_node_course ON kg_nodes(course_id)")
+        # 连线是自由的，但必须带类型（属于 / 依赖 / 对比）——
+        # 无名线过一个月连自己都看不懂是什么意思。
+        c.execute(
+            """CREATE TABLE IF NOT EXISTS kg_edges(
+                id INTEGER PRIMARY KEY AUTOINCREMENT,
+                course_id TEXT NOT NULL,
+                from_id INTEGER NOT NULL,
+                to_id INTEGER NOT NULL,
+                kind TEXT NOT NULL DEFAULT 'belongs',
+                created_at REAL NOT NULL
+            )"""
+        )
+        c.execute("CREATE INDEX IF NOT EXISTS idx_kg_edge_course ON kg_edges(course_id)")
         # 覆盖率台账：记录每个知识点单元是否出过题。
         # unit_key 由「资料 + 页 + 段号」拼成（见 core.build_knowledge_units）——
         # 只要资料内容不变，同一页永远算出同一个 key，覆盖率才能跨次累积。
@@ -1239,6 +1269,138 @@ def focus_summary(days: int = 7) -> dict:
         "week_by_course": by_course,
         "break_count": br["n"],
     }
+
+
+# ---------- 知识图 ----------
+# 一门课一张，长期维护。节点只表示「知识点」，不挂进度/正确率/页码统计
+# —— 用户明确说过那些对他没意义，只有「点节点跳页码」有用。
+
+EDGE_KINDS = {"belongs", "depends", "contrast"}
+NODE_FIELDS = {"label", "material_id", "page", "parent_id", "x", "y"}
+
+
+def kg_get(course_id: str) -> dict:
+    with _conn() as c:
+        nodes = [dict(r) for r in c.execute(
+            "SELECT id, label, material_id, page, parent_id, x, y FROM kg_nodes"
+            " WHERE course_id=? ORDER BY id", (course_id,))]
+        edges = [dict(r) for r in c.execute(
+            "SELECT id, from_id, to_id, kind FROM kg_edges WHERE course_id=? ORDER BY id",
+            (course_id,))]
+    return {"nodes": nodes, "edges": edges}
+
+
+def kg_add_node(course_id: str, label: str = "", material_id: str = "",
+                page: int = 0, parent_id: int = 0, x: float = 0, y: float = 0) -> dict:
+    with _conn() as c:
+        cur = c.execute(
+            "INSERT INTO kg_nodes(course_id, label, material_id, page, parent_id, x, y, created_at)"
+            " VALUES(?,?,?,?,?,?,?,?)",
+            (course_id, str(label)[:80], material_id or "", int(page or 0),
+             int(parent_id or 0), float(x or 0), float(y or 0), now()),
+        )
+        return {"id": cur.lastrowid, "label": str(label)[:80], "material_id": material_id or "",
+                "page": int(page or 0), "parent_id": int(parent_id or 0),
+                "x": float(x or 0), "y": float(y or 0)}
+
+
+def kg_update_node(nid: int, **fields) -> bool:
+    _check_fields(fields, NODE_FIELDS, "kg_nodes")
+    if not fields:
+        return False
+    if "label" in fields:
+        fields["label"] = str(fields["label"])[:80]
+    keys = ",".join(f"{k}=?" for k in fields)
+    with _conn() as c:
+        cur = c.execute(f"UPDATE kg_nodes SET {keys} WHERE id=?", (*fields.values(), nid))
+        return cur.rowcount > 0
+
+
+def kg_delete_node(nid: int) -> dict:
+    """删节点：子节点一起删（它们挂在这个节点下面，留着会变成孤儿），
+    相关连线也一起删。"""
+    removed = []
+    with _conn() as c:
+        row = c.execute("SELECT id, parent_id FROM kg_nodes WHERE id=?", (nid,)).fetchone()
+        if not row:
+            return {"deleted": 0}
+        stack, ids = [nid], []
+        while stack:
+            cur_id = stack.pop()
+            ids.append(cur_id)
+            stack.extend(r["id"] for r in c.execute(
+                "SELECT id FROM kg_nodes WHERE parent_id=?", (cur_id,)).fetchall())
+        marks = ",".join("?" * len(ids))
+        c.execute(f"DELETE FROM kg_nodes WHERE id IN ({marks})", ids)
+        c.execute(f"DELETE FROM kg_edges WHERE from_id IN ({marks}) OR to_id IN ({marks})",
+                  ids + ids)
+        removed = ids
+    return {"deleted": len(removed), "ids": removed}
+
+
+def kg_add_edge(course_id: str, from_id: int, to_id: int, kind: str = "belongs") -> dict:
+    kind = kind if kind in EDGE_KINDS else "belongs"
+    if int(from_id) == int(to_id):
+        raise ValueError("不能连到自己")
+    with _conn() as c:
+        # 同一对节点 + 同一类型只留一条；类型不同是允许的（既属于又依赖）
+        dup = c.execute(
+            "SELECT id FROM kg_edges WHERE course_id=? AND from_id=? AND to_id=? AND kind=?",
+            (course_id, int(from_id), int(to_id), kind)).fetchone()
+        if dup:
+            return {"id": dup["id"], "duplicate": True}
+        cur = c.execute(
+            "INSERT INTO kg_edges(course_id, from_id, to_id, kind, created_at) VALUES(?,?,?,?,?)",
+            (course_id, int(from_id), int(to_id), kind, now()),
+        )
+        return {"id": cur.lastrowid, "from_id": int(from_id), "to_id": int(to_id),
+                "kind": kind, "duplicate": False}
+
+
+def kg_delete_edge(eid: int) -> bool:
+    with _conn() as c:
+        return c.execute("DELETE FROM kg_edges WHERE id=?", (eid,)).rowcount > 0
+
+
+def kg_has_nodes(course_id: str) -> bool:
+    with _conn() as c:
+        return bool(c.execute(
+            "SELECT 1 FROM kg_nodes WHERE course_id=? LIMIT 1", (course_id,)).fetchone())
+
+
+def kg_add_many(course_id: str, nodes: list) -> list:
+    """批量插入草稿节点，并把 `parent`（草稿里的下标）换成真实 id。
+
+    两趟：先全部插入拿到 id，再回填 parent_id。
+    模型不保证父节点排在子节点前面，一趟做不到。
+    """
+    idmap, out = {}, []
+    with _conn() as c:
+        for n in nodes:
+            cur = c.execute(
+                "INSERT INTO kg_nodes(course_id, label, material_id, page, parent_id, x, y, created_at)"
+                " VALUES(?,?,?,?,?,?,?,?)",
+                (course_id, str(n.get("label") or "")[:80], n.get("material_id") or "",
+                 int(n.get("page") or 0), 0, float(n.get("x") or 0),
+                 float(n.get("y") or 0), now()),
+            )
+            idmap[len(out)] = cur.lastrowid
+            out.append({"id": cur.lastrowid})
+        for i, n in enumerate(nodes):
+            p = n.get("parent", -1)
+            if isinstance(p, int) and p >= 0 and p in idmap:
+                c.execute("UPDATE kg_nodes SET parent_id=? WHERE id=?", (idmap[p], idmap[i]))
+                out[i]["parent_id"] = idmap[p]
+                # 层级关系同时落成一条「属于」连线 —— 图上所有可见的线都来自
+                # kg_edges，否则父子关系画不出来（或者要额外养一套隐式边）
+                c.execute(
+                    "INSERT INTO kg_edges(course_id, from_id, to_id, kind, created_at)"
+                    " VALUES(?,?,?,?,?)",
+                    (course_id, idmap[p], idmap[i], "belongs", now()),
+                )
+            else:
+                out[i]["parent_id"] = 0
+    return out
 
 
 # ---------- 成绩构成 ----------
