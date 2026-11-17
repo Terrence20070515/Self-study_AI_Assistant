@@ -62,6 +62,7 @@ async function loadQuizPage() {
       : `这门课还没有资料，先去课程里上传。`) + `</div>`;
   }
   await loadCoverage();
+  loadQuizPending();      // 未完成的练习（按批次归档），不 await，别挡住页面
 }
 
 async function openQuizPage(courseId) {

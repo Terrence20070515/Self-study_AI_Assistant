@@ -179,9 +179,14 @@ def init_db():
                 refs TEXT NOT NULL DEFAULT '[]',
                 unit_key TEXT NOT NULL DEFAULT '',
                 level TEXT NOT NULL DEFAULT '',
+                batch_id TEXT NOT NULL DEFAULT '',
                 created_at REAL NOT NULL
             )"""
         )
+        # 老库补齐批次列（出题批次：用来把「没做完的那一批」原样捞回来）
+        _cols = {r["name"] for r in c.execute("PRAGMA table_info(quiz_questions)")}
+        if "batch_id" not in _cols:
+            c.execute("ALTER TABLE quiz_questions ADD COLUMN batch_id TEXT NOT NULL DEFAULT ''")
         c.execute("CREATE INDEX IF NOT EXISTS idx_quiz_course ON quiz_questions(course_id)")
         # 作答记录：每次作答都留痕（保留全部历史；薄弱点按「最近一次」判断）
         c.execute(
@@ -687,12 +692,16 @@ def _quiz_row(r) -> dict:
     return d
 
 
-def save_quiz_questions(course_id: str, questions: list) -> list:
+def save_quiz_questions(course_id: str, questions: list, batch_id: str = "") -> list:
     """一次出题的题目全部落库，返回带 id 的题目列表（前端靠 id 提交作答）。
 
     题目与覆盖率台账**写在同一个事务里** —— 题存了但台账漏记，覆盖率就会偏低，
     而这种偏差在界面上是「明明练过却说自己没覆盖」，很难被发现。
+
+    `batch_id`：一次出题用一个批次号。没做完的那批可以整批原样捞回来接着做
+    （以前只有「是否作答过」这一个维度，退出界面那批就找不回来了）。
     """
+    batch = (batch_id or "").strip() or f"b{uuid.uuid4().hex[:12]}"
     out = []
     with _conn() as c:
         for q in questions or []:
@@ -705,7 +714,8 @@ def save_quiz_questions(course_id: str, questions: list) -> list:
                 level = ""
             cur = c.execute(
                 "INSERT INTO quiz_questions(course_id, kind, question, options, answer,"
-                " explanation, refs, unit_key, level, created_at) VALUES(?,?,?,?,?,?,?,?,?,?)",
+                " explanation, refs, unit_key, level, batch_id, created_at)"
+                " VALUES(?,?,?,?,?,?,?,?,?,?,?)",
                 (
                     course_id,
                     kind,
@@ -716,12 +726,14 @@ def save_quiz_questions(course_id: str, questions: list) -> list:
                     json.dumps(q.get("refs") or [], ensure_ascii=False),
                     unit_key,
                     level,
+                    batch,
                     now(),
                 ),
             )
             item = dict(q)
             item["id"] = cur.lastrowid
             item["kind"] = kind
+            item["batch_id"] = batch
             out.append(item)
 
         for q in questions or []:
@@ -835,13 +847,70 @@ def quiz_stats(course_id: str) -> dict:
             "SELECT COUNT(*) AS n FROM quiz_questions q" + _latest_attempt_join() +
             " WHERE q.course_id=? AND a.correct=0", (course_id,)
         ).fetchone()["n"]
+        # 一次都没答过的题 = 没做完的。界面上「出题 N / 已做 M」那种数字没意义
+        # （出了题本来就该做），真正要显示的是「还剩几道」
+        pending = c.execute(
+            "SELECT COUNT(*) AS n FROM quiz_questions q WHERE q.course_id=?"
+            " AND NOT EXISTS (SELECT 1 FROM quiz_attempts a WHERE a.question_id=q.id)",
+            (course_id,),
+        ).fetchone()["n"]
     return {
         "questions": total_q,
         "answered": answered,
         "correct": ok,
         "accuracy": round(ok * 100 / answered, 1) if answered else None,
         "wrong": wrong,
+        "pending": pending,
     }
+
+
+# ---------- 未完成的练习（按出题批次归档） ----------
+
+_BATCH_KEY_SQL = (
+    "CASE WHEN q.batch_id<>'' THEN q.batch_id"
+    " ELSE 'legacy-' || CAST(q.created_at/60 AS INTEGER) END"
+)
+
+
+def list_pending_batches(course_id: str, limit: int = 30) -> dict:
+    """没做过的题，按出题批次归堆 —— 中途退出后还能整批捞回来接着做。
+
+    「没做过」= **一条作答记录都没有**。答错过的题不在这里（那些在错题本里），
+    所以做完一道就自动从本批减一，全做完这批就消失。
+
+    老数据没有 batch_id（这个字段是后加的），用「创建时间落在同一分钟」当一批：
+    一次出题是同步落库的，几十道题都在同一分钟内完成。
+    """
+    with _conn() as c:
+        rows = c.execute(
+            "SELECT q.*, " + _BATCH_KEY_SQL + " AS batch_key"
+            " FROM quiz_questions q"
+            " WHERE q.course_id=?"
+            "   AND NOT EXISTS (SELECT 1 FROM quiz_attempts a WHERE a.question_id=q.id)"
+            " ORDER BY q.created_at DESC, q.id DESC",
+            (course_id,),
+        ).fetchall()
+
+    groups: dict[str, dict] = {}
+    for r in rows:
+        q = _quiz_row(r)
+        key = q.pop("batch_key")
+        g = groups.setdefault(key, {"batch_id": key, "created_at": q["created_at"],
+                                    "questions": []})
+        g["questions"].append(q)
+
+    out = sorted(groups.values(), key=lambda g: -g["created_at"])
+    for g in out:
+        g["count"] = len(g["questions"])
+        names, seen = [], set()
+        for q in g["questions"]:
+            for ref in (q.get("refs") or []):
+                n = ref.get("orig_name") or ""
+                if n and n not in seen:
+                    seen.add(n)
+                    names.append(n)
+        g["materials"] = names[:3]
+    return {"total": len(rows), "batch_count": len(out), "batches": out[:limit]}
 
 
 # ---------- 错题本（跨课程） ----------

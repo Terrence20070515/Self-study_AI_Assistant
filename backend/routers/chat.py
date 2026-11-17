@@ -187,6 +187,13 @@ def api_quiz_stats(cid: str):
     return store.quiz_stats(cid)
 
 
+@router.get("/api/courses/{cid}/quiz/pending")
+def api_quiz_pending(cid: str):
+    """没做完的题：按出题批次归档。中途退出 / 切走课程后仍能整批捞回来接着做。"""
+    course_or_404(cid)
+    return store.list_pending_batches(cid)
+
+
 @router.get("/api/wrongbook")
 def api_wrongbook():
     """错题本：**跨课程**汇总，按「课程 → 资料」分组。

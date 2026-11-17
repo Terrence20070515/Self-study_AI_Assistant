@@ -97,6 +97,7 @@ $("#btn-quiz").onclick = async () => {
     const after = await loadCoverage();
     const added = (before && after) ? after.covered - before.covered : 0;
     if (added > 0) toast(`这批新增覆盖 ${added} 个知识点`);
+    loadQuizPending();     // 新出的一批也要进「未完成」归档
   } catch (err) {
     box.innerHTML = `<div class="quiz-empty">${esc(err.message)}</div>`;
   } finally {
@@ -392,6 +393,7 @@ function finishQuiz() {
   const b = el.querySelector("#btn-retry-wrong");
   if (b) b.onclick = loadWrongQuiz;
   el.scrollIntoView({ block: "nearest", behavior: "smooth" });
+  loadQuizPending();       // 这批做完了，归档列表里那一批应该消失/减数
 }
 
 async function loadWrongQuiz() {
@@ -425,21 +427,65 @@ let covTimer = null;
 function coverageScopeIds() { return [...quizState.selected]; }
 function coverageQuery(ids) { return ids.length ? `?material_ids=${ids.join(",")}` : ""; }
 
-// 累计复习进度：出题 N · 已做 M · 正确率 X% · 待重练 K
-// 后端 quiz_stats 早就有这些数，之前前端只显示「本轮」，看不到总量。
+// 累计进度：未完成 N 道 · 待重练 K · 正确率 X%
+// 以前这里显示「出题 N · 已做 M」—— 出了题本来就该做，这两个数字不提供任何信息。
+// 该看的是「还剩几道没做」。
 async function loadQuizStats() {
   const el = $("#quiz-progress");
   if (!el || !quizCourseId()) return;
   try {
     const s = await api(`/api/courses/${quizCourseId()}/quiz/stats`);
     if (!s || !s.questions) { el.textContent = ""; return; }
-    const acc = (s.accuracy === null || s.accuracy === undefined) ? "—" : s.accuracy + "%";
-    el.innerHTML = `出题 <b>${s.questions}</b> · 已做 <b>${s.answered}</b>`
-      + ` · 正确率 <b>${acc}</b>`
-      + (s.wrong ? ` · 待重练 <b>${s.wrong}</b>` : "");
+    const acc = (s.accuracy === null || s.accuracy === undefined) ? null : s.accuracy + "%";
+    el.innerHTML = `未完成 <b>${s.pending || 0}</b> 道`
+      + (s.wrong ? ` · 待重练 <b>${s.wrong}</b>` : "")
+      + (acc ? ` · 正确率 <b>${acc}</b>` : "");
   } catch (e) {
     el.textContent = "";
   }
+}
+
+// ---------- 未完成的练习：按出题批次归档 ----------
+// 题存在库里，但以前只有「本轮」放在内存里，退出页面就没了。
+// 这里把「一次都没答过」的题按批次列出来，点一下就接着做。
+function fmtBatchTime(ts) {
+  const d = new Date((ts || 0) * 1000);
+  if (!d.getTime()) return "";
+  const p = (n) => String(n).padStart(2, "0");
+  return `${p(d.getMonth() + 1)}-${p(d.getDate())} ${p(d.getHours())}:${p(d.getMinutes())}`;
+}
+
+async function loadQuizPending() {
+  const box = $("#quiz-pending");
+  const list = $("#quiz-pending-list");
+  const cid = quizCourseId();
+  if (!box || !list || !cid) return;
+  let d;
+  try {
+    d = await api(`/api/courses/${cid}/quiz/pending`);
+  } catch (e) {
+    box.classList.add("hidden");
+    return;
+  }
+  if (!d || !d.total) { box.classList.add("hidden"); return; }
+  box.classList.remove("hidden");
+  $("#quiz-pending-sum").textContent = `${d.total} 道 · ${d.batch_count} 批`;
+  list.innerHTML = d.batches.map((b) => `
+    <div class="pending-row">
+      <span class="pending-count">${b.count} 道</span>
+      <span class="pending-time muted">${fmtBatchTime(b.created_at)}</span>
+      <span class="pending-mats">${esc((b.materials || []).join(" · ") || "—")}</span>
+      <button class="btn btn-outline btn-sm pending-go">继续做</button>
+    </div>`).join("");
+  list.querySelectorAll(".pending-row").forEach((row, i) => {
+    const b = d.batches[i];
+    if (!b) return;
+    row.querySelector(".pending-go").onclick = () => {
+      startQuiz(b.questions);
+      // 批次里题目多时，滚到题目区比停在列表更合适
+      $("#quiz-result")?.scrollIntoView({ block: "start", behavior: "smooth" });
+    };
+  });
 }
 
 async function loadCoverage() {

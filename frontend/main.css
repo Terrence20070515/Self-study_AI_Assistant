@@ -1130,3 +1130,19 @@ button.wb-pick:disabled { cursor: default; opacity: .75; }
   25% { box-shadow: 0 0 0 3px var(--accent); }
   60% { box-shadow: 0 0 0 3px var(--accent-weak); }
 }
+
+/* ===== 未完成的练习（出题批次归档） ===== */
+.quiz-pending-list { display: flex; flex-direction: column; margin: 0 -6px; }
+.pending-row {
+  display: flex; align-items: center; gap: 12px;
+  padding: 8px 6px; border-bottom: 1px solid var(--border);
+}
+.pending-row:last-child { border-bottom: none; }
+.pending-row:hover { background: var(--accent-weak); border-radius: 6px; }
+.pending-count { flex: 0 0 54px; font-size: 12.5px; font-weight: 600; }
+.pending-time { flex: 0 0 96px; font-size: 11.5px; }
+.pending-mats {
+  flex: 1; min-width: 0; font-size: 11.5px; color: var(--text-2);
+  white-space: nowrap; overflow: hidden; text-overflow: ellipsis;
+}
+.pending-go { flex: 0 0 auto; }

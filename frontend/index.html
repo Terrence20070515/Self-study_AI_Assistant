@@ -4,7 +4,7 @@
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
 <title>Self-Learning Space</title>
-<link rel="stylesheet" href="main.css?v=20261118b">
+<link rel="stylesheet" href="main.css?v=20261118c">
 </head>
 <body>
 <div class="layout">
@@ -134,6 +134,14 @@
           <select id="quiz-course-select" class="input quiz-course-pick" title="选择要出题的课程"></select>
         </div>
       </header>
+        <!-- 未完成的练习：按出题批次归档，退出后还能整批接着做 -->
+        <div id="quiz-pending" class="panel quiz-pending hidden">
+          <div class="panel-head">
+            <h3>未完成的练习 <span class="muted" id="quiz-pending-sum"></span></h3>
+          </div>
+          <div id="quiz-pending-list" class="quiz-pending-list"></div>
+        </div>
+
         <!-- 练习：出题 → 作答判分 → 错题重练（学习闭环的后半段） -->
         <div class="panel">
           <div class="panel-head">
@@ -671,14 +679,14 @@
     }, 3000);
   });
 </script>
-<script src="core.js?v=20261118b"></script>
-  <script src="views-home.js?v=20261118b"></script>
-  <script src="views-course.js?v=20261118b"></script>
-  <script src="views-quiz.js?v=20261118b"></script>
-  <script src="views-quizpage.js?v=20261118b"></script>
-  <script src="views-asm.js?v=20261118b"></script>
-  <script src="views-wrong.js?v=20261118b"></script>
-  <script src="views-tools.js?v=20261118b"></script>
-  <script src="main.js?v=20261118b"></script>
+<script src="core.js?v=20261118c"></script>
+  <script src="views-home.js?v=20261118c"></script>
+  <script src="views-course.js?v=20261118c"></script>
+  <script src="views-quiz.js?v=20261118c"></script>
+  <script src="views-quizpage.js?v=20261118c"></script>
+  <script src="views-asm.js?v=20261118c"></script>
+  <script src="views-wrong.js?v=20261118c"></script>
+  <script src="views-tools.js?v=20261118c"></script>
+  <script src="main.js?v=20261118c"></script>
 </body>
 </html>
