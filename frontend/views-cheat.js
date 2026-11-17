@@ -16,7 +16,10 @@ const CHEAT_SECTIONS = [
 function openCheat() {
   showView("cheat");
   renderCheatCoursePicker();
-  if (cheatState.courseId) {
+  const hasCourse = !!cheatState.courseId;
+  // 「换课程」只在已经有课程时才有意义 —— 选课页本身就是在换课程
+  $("#cheat-actions").classList.toggle("hidden", !hasCourse);
+  if (hasCourse) {
     $("#cheat-pick").classList.add("hidden");
     $("#cheat-panel").classList.remove("hidden");
     loadCheat(cheatState.courseId);
@@ -41,6 +44,7 @@ async function renderCheatCoursePicker() {
       cheatState.course = c;
       $("#cheat-pick").classList.add("hidden");
       $("#cheat-panel").classList.remove("hidden");
+      $("#cheat-actions").classList.remove("hidden");
       loadCheat(c.id);
     };
     box.appendChild(btn);
@@ -154,6 +158,8 @@ async function saveCheatField(row, el) {
 function renderCheat() {
   const box = $("#cheat-body");
   box.innerHTML = "";
+  // 没内容就没有可导出的东西，按钮直接不出现（不是灰着 —— 灰着会让人去点）
+  $("#cheat-pdf").classList.toggle("hidden", cheatState.items.length === 0);
   if (!cheatState.items.length) {
     box.innerHTML = `<div class="material-empty">还没有内容。点「AI 生成」勾几份资料，
       或者「＋ 加一条」自己写。</div>`;
@@ -192,8 +198,10 @@ async function addCheatItem(section) {
 $("#dash-cheat").onclick = guard("打开速查表", openCheat);
 $("#cheat-switch").onclick = guard("换课程", () => {
   cheatState.courseId = null;
+  cheatState.items = [];
   $("#cheat-panel").classList.add("hidden");
   $("#cheat-pick").classList.remove("hidden");
+  $("#cheat-actions").classList.add("hidden");
   renderCheatCoursePicker();
 });
 $("#cheat-add").onclick = guard("加一条", () => addCheatItem("terms"));

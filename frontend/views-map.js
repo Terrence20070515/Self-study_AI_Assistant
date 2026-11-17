@@ -22,6 +22,8 @@ const KG_NODE_W = 190, KG_NODE_H = 44;
 function openMap() {
   showView("map");
   renderMapCoursePicker();
+  // 「换课程」只在已选课程时出现：没选课时这个按钮等于让你回到现在这一页
+  $("#kg-actions").classList.toggle("hidden", !mapState.courseId);
   if (mapState.courseId) {
     $("#kg-pick").classList.add("hidden");
     $("#kg-panel").classList.remove("hidden");
@@ -50,6 +52,7 @@ async function renderMapCoursePicker() {
       mapState.course = c;
       $("#kg-pick").classList.add("hidden");
       $("#kg-panel").classList.remove("hidden");
+      $("#kg-actions").classList.remove("hidden");
       loadMap(c.id);
     };
     box.appendChild(btn);
@@ -401,6 +404,7 @@ $("#kg-switch").onclick = guard("换课程", () => {
   mapState.courseId = null;
   $("#kg-panel").classList.add("hidden");
   $("#kg-pick").classList.remove("hidden");
+  $("#kg-actions").classList.add("hidden");
   renderMapCoursePicker();
 });
 
