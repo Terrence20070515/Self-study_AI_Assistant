@@ -203,3 +203,12 @@ def api_wrongbook():
     """
     groups = store.list_wrong_all()
     return {"total": sum(g["count"] for g in groups), "groups": groups}
+
+
+@router.get("/api/weak-points")
+def api_weak_points(limit: int = 8):
+    """薄弱点排行：按资料的正确率（错题本只有分子，没有分母）。
+
+    并进错题本顶部，不单开页面 —— 两者数据同源，分开要来回切。
+    """
+    return store.weak_points(limit=max(1, min(int(limit or 8), 30)))

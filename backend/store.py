@@ -1085,6 +1085,70 @@ def list_wrong_all(limit_per_course: int = 300) -> list[dict]:
     return out
 
 
+# ---------- 薄弱点排行 ----------
+# 错题本按「错了几道」排序，缺的是分母：错 7 道可能是从 8 道里错的（基本没掌握），
+# 也可能是从 40 道里错的（其实还行）。这两者在错题本里长得一模一样，
+# 但复习优先级完全不同 —— 所以要按正确率另排一次。
+
+MIN_SAMPLE = 3          # 答过少于这个数不参与排名（错 1 道 = 0%，会把排行榜冲垮）
+
+
+def weak_points(limit: int = 8) -> dict:
+    """按资料的正确率排行，取「最该补的 N 处」。
+
+    口径与错题本一致：每题只算**最近一次**作答。
+    只统计还有错题的资料（全对的不需要复习）。
+    """
+    with _conn() as c:
+        rows = c.execute(
+            "SELECT substr(q.unit_key, 1, instr(q.unit_key, '#') - 1) AS mid,"
+            " COUNT(*) AS answered, COALESCE(SUM(a.correct), 0) AS ok"
+            " FROM quiz_questions q" + _latest_attempt_join() +
+            " WHERE q.unit_key <> '' AND instr(q.unit_key, '#') > 0"
+            " GROUP BY mid"
+        ).fetchall()
+
+    if not rows:
+        return {"items": [], "low_sample": 0, "min_sample": MIN_SAMPLE}
+
+    ids = [r["mid"] for r in rows if r["mid"]]
+    if not ids:
+        return {"items": [], "low_sample": 0, "min_sample": MIN_SAMPLE}
+    with _conn() as c:
+        info = {r["id"]: r for r in c.execute(
+            "SELECT m.id, m.orig_name, m.ext, m.deleted, m.course_id, co.code AS course_code"
+            " FROM materials m LEFT JOIN courses co ON co.id = m.course_id"
+            " WHERE m.id IN (" + ",".join("?" * len(ids)) + ")", ids).fetchall()}
+
+    items, low = [], 0
+    for r in rows:
+        mid, answered, ok = r["mid"], r["answered"], int(r["ok"] or 0)
+        m = info.get(mid)
+        if not m or m["deleted"]:
+            continue
+        wrong = answered - ok
+        if wrong <= 0:
+            continue                       # 全对，不用复习
+        if answered < MIN_SAMPLE:
+            low += 1                       # 样本太少，只统计不排名
+            continue
+        items.append({
+            "material_id": mid,
+            "orig_name": m["orig_name"],
+            "ext": m["ext"] or "pdf",
+            "course_id": m["course_id"],
+            "course_code": m["course_code"] or "",
+            "answered": answered,
+            "correct": ok,
+            "wrong": wrong,
+            "accuracy": round(ok * 100 / answered, 1),
+        })
+
+    # 正确率低的优先；同率时错题多的优先（同样 50%，错 12 道比错 2 道更值得补）
+    items.sort(key=lambda x: (x["accuracy"], -x["wrong"]))
+    return {"items": items[:limit], "low_sample": low, "min_sample": MIN_SAMPLE}
+
+
 # ---------- 成绩构成 ----------
 
 def list_assessments(course_id: str):

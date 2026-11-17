@@ -2,7 +2,7 @@
    数据来自 /api/wrongbook；重做走现有的 /api/quiz/questions/{id}/attempt，
    答对后这道题会因为「最近一次是正确」而自动从清单里消失。 */
 
-const wbState = { data: null, busy: false };
+const wbState = { data: null, weak: null, busy: false };
 
 const wbEsc = (s) => String(s == null ? "" : s)
   .replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;")
@@ -59,13 +59,38 @@ function wbQuestion(q, mat) {
 
 function wbMaterial(g, m) {
   return `
-    <div class="wb-mat">
+    <div class="wb-mat" data-mid="${wbEsc(m.material_id || "")}">
       <div class="wb-mat-head">
         <b>${wbEsc(m.orig_name || "未关联资料")}</b>
         <span>${m.questions.length} 道${m.page ? " · 约第 " + m.page + " 页" : ""}</span>
       </div>
       ${m.questions.map((q) => wbQuestion(q, m)).join("")}
     </div>`;
+}
+
+/* 薄弱点排行：错题本只告诉你「错了几道」，这里补上分母 ——
+   错 7 道可能是从 8 道里错的（基本没掌握），也可能是从 40 道里错的（其实还行）。
+   点一行滚到下面那份资料的题卡。 */
+function wbWeakSection() {
+  const w = wbState.weak;
+  if (!w || !(w.items || []).length) return "";
+  const level = (acc) => (acc < 60 ? "bad" : acc < 75 ? "warn" : "ok");
+  return `
+    <section class="wb-weak">
+      <div class="wb-weak-head">
+        <b>最该补的 ${w.items.length} 处</b>
+        <span class="muted">按正确率排，点一行跳到下面的题</span>
+        ${w.low_sample ? `<span class="wb-weak-note">另有 ${w.low_sample} 份答过不足 ${w.min_sample} 道，样本太少不参与排名</span>` : ""}
+      </div>
+      <div class="wb-weak-list">
+        ${w.items.map((it) => `
+          <button class="wb-weak-row" data-mid="${wbEsc(it.material_id)}">
+            <span class="wb-weak-acc ${level(it.accuracy)}">${it.accuracy}%</span>
+            <span class="wb-weak-name">${wbEsc(it.orig_name || "")}</span>
+            <span class="wb-weak-num">${it.wrong}/${it.answered} 道错</span>
+          </button>`).join("")}
+      </div>
+    </section>`;
 }
 
 function renderWrongBook() {
@@ -80,7 +105,7 @@ function renderWrongBook() {
       去「AI 出题」做一轮，答错的题会自动收进来。</div>`;
     return;
   }
-  body.innerHTML = groups.map((g) => `
+  body.innerHTML = wbWeakSection() + groups.map((g) => `
     <section class="wb-course">
       <div class="wb-course-head">
         <b>${wbEsc(g.course_code)}</b>
@@ -96,7 +121,13 @@ async function loadWrongBook() {
   const body = document.querySelector("#wb-body");
   body.innerHTML = `<div class="wb-empty">读取中…</div>`;
   try {
-    wbState.data = await api("/api/wrongbook");
+    // 两个请求并发：排行和题卡本来就是同一份数据的两种切法
+    const [book, weak] = await Promise.all([
+      api("/api/wrongbook"),
+      api("/api/weak-points?limit=8").catch(() => null),   // 排行挂了不该拖垮错题本
+    ]);
+    wbState.data = book;
+    wbState.weak = weak;
   } catch (e) {
     body.innerHTML = `<div class="wb-empty">读取失败：${wbEsc(e.message)}</div>`;
     return;
@@ -116,6 +147,18 @@ function bindWrongBook() {
 
   document.querySelectorAll(".wb-redo").forEach((btn) => {
     btn.onclick = () => startRedo(btn.closest(".wb-q"));
+  });
+
+  // 排行行 → 滚到下面那份资料的题卡，并短暂高亮
+  document.querySelectorAll(".wb-weak-row").forEach((row) => {
+    row.onclick = () => {
+      const card = document.querySelector(`.wb-mat[data-mid="${row.dataset.mid}"]`);
+      if (!card) return;
+      card.scrollIntoView({ block: "center", behavior: "smooth" });
+      card.classList.remove("wb-flash");
+      void card.offsetWidth;          // 强制重排，否则重复点击不会再触发动画
+      card.classList.add("wb-flash");
+    };
   });
 }
 
