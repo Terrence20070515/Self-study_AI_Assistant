@@ -1422,3 +1422,49 @@ button.wb-pick:disabled { cursor: default; opacity: .75; }
   background: transparent; border: none; cursor: pointer; font-family: inherit;
 }
 .cheat-del:hover { color: var(--danger); }
+
+/* ===== 学习时长（番茄钟下面那行 → 弹窗） ===== */
+#pomo-week { cursor: pointer; }
+#pomo-week:hover .pomo-week-sum { color: var(--accent); }
+
+.focus-card { width: 520px; max-width: 88vw; }
+.focus-today {
+  display: flex; align-items: baseline; gap: 10px; margin-bottom: 16px;
+}
+.focus-today b { font-size: 26px; font-weight: 700; letter-spacing: .5px; }
+.focus-today .muted { font-size: 12px; }
+
+.focus-chart-label {
+  font-size: 11.5px; color: var(--text-2); margin: 12px 0 6px;
+  letter-spacing: .3px;
+}
+.focus-bars {
+  display: flex; align-items: stretch; gap: 4px;
+  height: 96px; margin: 0 0 4px;
+}
+.focus-bar {
+  flex: 1; display: flex; flex-direction: column; justify-content: flex-end;
+  align-items: center;
+}
+.focus-bar-fill {
+  width: 100%; max-width: 22px; border-radius: 3px 3px 0 0;
+  background: var(--accent); opacity: .85;
+}
+.focus-bar:hover .focus-bar-fill { opacity: 1; }
+/* 日期是柱子下面的一行固定高度的字，不用 transform 挪 —— 挪了会压到下一段标题上 */
+.focus-bar span {
+  height: 16px; line-height: 16px;
+  font-size: 9px; color: var(--text-2); white-space: nowrap;
+}
+
+.focus-courses { display: flex; flex-direction: column; gap: 2px; }
+.focus-row {
+  display: flex; align-items: baseline; gap: 10px;
+  padding: 6px 0; border-bottom: 1px solid var(--border);
+}
+.focus-row:last-child { border-bottom: none; }
+.focus-row b { font-size: 12.5px; min-width: 62px; }
+.focus-row .muted { flex: 1; min-width: 0; font-size: 11.5px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.focus-row-min { font-size: 12px; font-variant-numeric: tabular-nums; }
+.focus-empty { font-size: 12px; color: var(--text-2); line-height: 1.9; padding: 10px 0; }
+.focus-hint { font-size: 11px; margin-top: 10px; }

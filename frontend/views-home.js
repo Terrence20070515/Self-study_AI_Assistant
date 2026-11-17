@@ -267,21 +267,65 @@ function renderPomoCourse() {
   }
 }
 
+const focusState = { data: null };
+
+function fmtMin(m) {
+  if (!m) return "0";
+  return m >= 60 ? (m / 60).toFixed(1).replace(/\.0$/, "") + " 小时" : m + " 分钟";
+}
+
 async function loadFocusSummary() {
   const el = $("#pomo-week");
   if (!el) return;
-  let d;
-  try { d = await api("/api/focus/summary?days=7"); } catch (e) { el.textContent = ""; return; }
-  const hrs = (m) => (m >= 60 ? (m / 60).toFixed(1).replace(/\.0$/, "") + "h" : m + "m");
+  try {
+    focusState.data = await api("/api/focus/summary?days=14");
+  } catch (e) { el.textContent = ""; return; }
+  const d = focusState.data;
   const parts = (d.week_by_course || [])
     .filter((x) => x.minutes > 0)
-    .slice(0, 3)
-    .map((x) => `${x.course_code || "未指定"} ${hrs(x.minutes)}`);
+    .slice(0, 2)
+    .map((x) => `${x.course_code || "未指定"} ${fmtMin(x.minutes)}`);
+  // 没有记录时也要露一行，否则用户根本不知道这里能点（这里以前是空白）
   el.innerHTML = d.week_minutes
-    ? `<span class="pomo-week-sum">本周 ${hrs(d.week_minutes)}</span>`
+    ? `<span class="pomo-week-sum">本周 ${fmtMin(d.week_minutes)}</span>`
       + `<span class="pomo-week-list">${parts.map(esc).join(" · ")}</span>`
-    : "";
+    : `<span class="pomo-week-sum muted">本周还没有记录</span>`;
 }
+
+/* 学习时长明细：今日 / 近 14 天 / 按课程 */
+function openFocusModal() {
+  const d = focusState.data;
+  if (!d) return toast("还在读数据…");
+  $("#focus-today").innerHTML = d.today_minutes
+    ? `<b>${fmtMin(d.today_minutes)}</b><span class="muted">${d.today_count} 个番茄</span>`
+    : `<b>0</b><span class="muted">今天还没开始</span>`;
+
+  const daily = d.daily || [];
+  const max = Math.max(25, ...daily.map((x) => x.minutes));
+  $("#focus-bars").innerHTML = daily.map((x) => {
+    const h = Math.round((x.minutes / max) * 64);
+    return `<div class="focus-bar" title="${esc(x.date)} · ${fmtMin(x.minutes)}">
+      <div class="focus-bar-fill" style="height:${x.minutes ? Math.max(3, h) : 0}px"></div>
+      <span>${esc(x.date.slice(3))}</span>
+    </div>`;
+  }).join("");
+
+  const rows = (d.week_by_course || []).filter((x) => x.minutes > 0);
+  $("#focus-courses").innerHTML = rows.length
+    ? rows.map((x) => `<div class="focus-row">
+        <b>${esc(x.course_code || "未指定")}</b>
+        <span class="muted">${esc(x.course_name || "")}</span>
+        <span class="focus-row-min">${fmtMin(x.minutes)} · ${x.count} 个</span>
+      </div>`).join("")
+    : `<div class="focus-empty">还没有记录。<br>
+        跑完一个完整的番茄（25 分钟）才会记一笔——中途点「重置」算放弃，不入账。</div>`;
+
+  $("#focus-hint").textContent = d.break_count
+    ? `本周另有 ${d.break_count} 次休息（不计入学习时长）` : "";
+  openModal("#modal-focus");
+}
+
+$("#pomo-week").onclick = guard("学习时长", openFocusModal);
 
 function pomoTick() {
   pomo.left -= 1;

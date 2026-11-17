@@ -4,7 +4,7 @@
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
 <title>Self-Learning Space</title>
-<link rel="stylesheet" href="main.css?v=20261119g">
+<link rel="stylesheet" href="main.css?v=20261120a">
 </head>
 <body>
 <div class="layout">
@@ -632,6 +632,22 @@
   </div>
 </div>
 
+<!-- 学习时长明细（点番茄钟下面那行打开） -->
+<div id="modal-focus" class="modal hidden">
+  <div class="modal-card focus-card">
+    <h3>学习时长</h3>
+    <div id="focus-today" class="focus-today"></div>
+    <div class="focus-chart-label">近 14 天</div>
+    <div id="focus-bars" class="focus-bars"></div>
+    <div class="focus-chart-label">本周按课程</div>
+    <div id="focus-courses" class="focus-courses"></div>
+    <div id="focus-hint" class="focus-hint muted"></div>
+    <div class="modal-actions">
+      <button class="btn btn-ghost" data-close>关闭</button>
+    </div>
+  </div>
+</div>
+
 <!-- 批量改标签（编辑模式勾选多份后出现） -->
 <div id="modal-tag" class="modal hidden">
   <div class="modal-card">
@@ -833,16 +849,16 @@
     }, 3000);
   });
 </script>
-<script src="core.js?v=20261119g"></script>
-  <script src="views-home.js?v=20261119g"></script>
-  <script src="views-course.js?v=20261119g"></script>
-  <script src="views-quiz.js?v=20261119g"></script>
-  <script src="views-quizpage.js?v=20261119g"></script>
-  <script src="views-asm.js?v=20261119g"></script>
-  <script src="views-wrong.js?v=20261119g"></script>
-  <script src="views-map.js?v=20261119g"></script>
-  <script src="views-cheat.js?v=20261119g"></script>
-  <script src="views-tools.js?v=20261119g"></script>
-  <script src="main.js?v=20261119g"></script>
+<script src="core.js?v=20261120a"></script>
+  <script src="views-home.js?v=20261120a"></script>
+  <script src="views-course.js?v=20261120a"></script>
+  <script src="views-quiz.js?v=20261120a"></script>
+  <script src="views-quizpage.js?v=20261120a"></script>
+  <script src="views-asm.js?v=20261120a"></script>
+  <script src="views-wrong.js?v=20261120a"></script>
+  <script src="views-map.js?v=20261120a"></script>
+  <script src="views-cheat.js?v=20261120a"></script>
+  <script src="views-tools.js?v=20261120a"></script>
+  <script src="main.js?v=20261120a"></script>
 </body>
 </html>

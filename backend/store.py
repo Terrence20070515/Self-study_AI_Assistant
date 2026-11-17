@@ -1270,6 +1270,20 @@ def focus_summary(days: int = 7) -> dict:
             "SELECT COUNT(*) AS n FROM focus_sessions WHERE kind='break' AND at >= ?",
             (since,),
         ).fetchone()
+    # 按天分桶：只给一个「本周合计」看不出节奏（天天 25 分钟 vs 一天干 3 小时）
+    daily = []
+    for i in range(max(1, int(days)) - 1, -1, -1):
+        d0 = _dt.datetime.now().replace(hour=0, minute=0, second=0, microsecond=0) - _dt.timedelta(days=i)
+        d1 = d0 + _dt.timedelta(days=1)
+        with _conn() as c:
+            r = c.execute(
+                "SELECT COUNT(*) AS n, COALESCE(SUM(minutes),0) AS m FROM focus_sessions"
+                " WHERE kind='focus' AND at >= ? AND at < ?",
+                (d0.timestamp(), d1.timestamp()),
+            ).fetchone()
+        daily.append({"date": d0.strftime("%m-%d"), "minutes": int(r["m"] or 0),
+                      "count": r["n"]})
+
     by_course = [{
         "course_id": r["course_id"] or "",
         "course_code": r["course_code"] or "",
@@ -1283,6 +1297,7 @@ def focus_summary(days: int = 7) -> dict:
         "today_minutes": int(t["m"] or 0),
         "week_minutes": sum(x["minutes"] for x in by_course),
         "week_by_course": by_course,
+        "daily": daily,
         "break_count": br["n"],
     }
 
