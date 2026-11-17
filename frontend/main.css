@@ -698,7 +698,12 @@ label.btn { display: inline-flex; align-items: center; }
 .dash-card { padding: 8px 10px; border-radius: 8px; }
 .dash-card b { font-size: 18px; line-height: 1.2; }
 .dash-card span { font-size: 11px; }
-.dash-nav { display: flex; gap: 8px; margin: 0; }
+/* 六个入口：两行三列。横向一排六个时每个只剩 117px，
+   「资料总库」四个字几乎顶到边框；三列后每个约 1/3 宽，字号能回到 14px。 */
+.dash-nav {
+  display: grid; grid-template-columns: repeat(3, 1fr);
+  gap: 8px; margin: 0;
+}
 /* 主页三个入口：等宽大按钮。原来是 btn-sm 的小胶囊，缩在左上角没人看得见。
    白底 + 细描边和面板同色，视觉上等于隐形，所以默认就给一层浅底。 */
 .dash-entry {
@@ -1244,8 +1249,8 @@ button.wb-pick:disabled { cursor: default; opacity: .75; }
 
 /* ===== 主页入口收到 6 个：等宽、字号降一档 ===== */
 /* 五个字以内都能放下；真折行了它会自己变高，不影响点击 */
-.dash-entry { padding: 15px 8px; font-size: 13px; letter-spacing: .2px; }
-.dash-nav { gap: 6px; }
+/* 三列布局下宽度够了，字号回到 14px（13px 是为了一排六个才收的） */
+.dash-entry { padding: 14px 12px; font-size: 14px; letter-spacing: .3px; }
 
 /* ===== 知识图 ===== */
 .kg-course-list { display: flex; flex-wrap: wrap; gap: 10px; }
