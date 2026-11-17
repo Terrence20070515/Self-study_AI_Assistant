@@ -390,12 +390,12 @@ $("#todo-form").addEventListener("submit", async (e) => {
 
 
 // ---------- 沉浸模式（上课专用） ----------
-// 注释支持多语言：各语言分别生成、分开存储，切换语言不会覆盖别的语言版本。
-const NOTE_LANG_KEY = "sls-note-lang";
-const NOTE_LANG_LABEL = { zh: "中文", en: "英文", es: "西班牙语" };
+// 注释只出中文：原文是英语或西班牙语都译成中文讲解。
+// 以前按语言分三套生成，用户反馈「西语/英语注释看着费劲」——他自己能读英文 PPT，
+// 需要的只是中文解释，所以统一中文，不再有语言切换。
+const NOTE_LANG_LABEL = { zh: "中文" };
 function immLangPref() {
-  const v = storage.get(NOTE_LANG_KEY) || "zh";
-  return NOTE_LANG_LABEL[v] ? v : "zh";
+  return "zh";
 }
 
 const imm = { mid: null, courseId: null, doc: null, page: 1, total: 0,
@@ -407,7 +407,6 @@ async function openImmersive(m, startPage = 0) {   // startPage=0 表示接着�
                        total: 0, notes: {}, status: null, editing: false,
                        lang: immLangPref(),
                        scale: 1, fitWidth: true });   // 每份资料默认「适应宽度」
-  $("#imm-note-lang").value = imm.lang;
   $("#imm-title").textContent = m.orig_name;
   $("#imm-progress").textContent = "";
   immApplyCols();                                    // 恢复上次的栏折叠状态
@@ -550,15 +549,6 @@ async function refreshImmNotes() {
   renderImmNote();
   return imm.status;
 }
-
-// 切语言：只换显示哪一份，不会改动已生成的其他语言注释
-$("#imm-note-lang").onchange = async (e) => {
-  imm.lang = e.target.value;
-  storage.set(NOTE_LANG_KEY, imm.lang);
-  stopImmPoll();                       // 换语言后旧轮询的任务不再相关
-  await refreshImmNotes();
-  if (imm.status && imm.status.running) startImmPoll();
-};
 
 function updateImmProgress() {
   const st = imm.status || {};

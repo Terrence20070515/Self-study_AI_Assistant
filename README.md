@@ -38,7 +38,7 @@
 
 ![练习闭环](docs/screenshots/practice-closed-loop.png)
 
-**逐页注释支持中文 / 英文 / 西班牙语，三种语言分开存：**
+**逐页注释一律输出中文** —— 原文是英语或西班牙语都译成中文讲解，外语只保留在「原文术语」一段（原词 + 中文解释）：
 
 ![多语言注释](docs/screenshots/notes-multilingual.png)
 

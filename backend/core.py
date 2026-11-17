@@ -934,67 +934,36 @@ QUIZ_KIND_LABEL = {"choice": "四选一选择题", "short": "简答题", "mixed"
 
 # ---------- 沉浸模式逐页注释 ----------
 
-def generate_page_notes_batch(course_name: str, pages: list, lang: str = "zh") -> dict:
+def generate_page_notes_batch(course_name: str, pages: list) -> dict:
     """一次调用为多页生成注释，返回 {page_no: note}。
 
-    lang: zh / en / es，默认中文（中文分支的提示词保持原样，
-    已有上千条注释就是它生成的，不要动）。
+    **注释一律输出中文**，不管原文是英语、西班牙语还是中文。
+    原文是外语时要求先读懂再译成中文（不逐字硬翻），术语段保留原词 + 中文解释。
+    这样同一门课的资料不用因为语言不同而分成几套注释。
+
     pages: [(page_no, page_text), ...]。模型输出按页标记分节解析，
-    解析失败的页不会出现在返回值里（调用方下次会自动重试）。"""
-    import re as _re
+    解析失败的页不会出现在返回值里（调用方下次会自动重试）。
+    """
+    import re as _re          # 下面按【第 X 页】切分模型输出时要用
     page_list = "、".join(str(p[0]) for p in pages)
     body = "\n\n".join(
         f"【第 {pno} 页文字】\n{text[:2500]}" for pno, text in pages
     )
-    if lang == "es":
-        prompt = (
-            f"Eres el asistente de la asignatura「{course_name}」。"
-            f"Abajo están los textos extraídos de las páginas {page_list} de la misma presentación PDF"
-            "（puede faltar texto por el formato; interpreta lo que haya）。\n"
-            "Genera una nota de clase **en español** para cada página. "
-            "Cada página debe seguir exactamente esta estructura:\n"
-            "Primera línea, sola: [Página X]（X es el número de página）\n"
-            "Luego: [Idea principal]\nUna o dos frases en español sobre de qué trata la página.\n"
-            "[Puntos clave]\nDesarrolla los puntos en frases completas en español, numeradas 1. 2. 3.; "
-            "si la página no tiene puntos de texto escribe: Esta página no tiene puntos de texto.\n"
-            "[Términos]\nEnumera solo los términos en inglés que aparezcan realmente en el texto, "
-            "uno por línea: • término en inglés: explicación en español; "
-            "si no hay, escribe: Esta página no tiene términos en inglés.\n"
-            "No pongas separadores entre páginas, encadena las páginas directamente, "
-            "no escribas nada más.\n\n"
-            f"{body}"
-        )
-    elif lang == "en":
-        prompt = (
-            f"You are the teaching assistant for「{course_name}」. "
-            f"Below are the texts extracted from pages {page_list} of the same lecture PDF "
-            "(text may be incomplete due to layout; work with what is there).\n"
-            "Write a lecture note **in English** for each page. "
-            "Every page must follow exactly this structure:\n"
-            "First line, alone: [Page X] (X is the page number)\n"
-            "Then: [Main idea]\nOne or two sentences in English on what the page is about.\n"
-            "[Key points]\nExpand the points into complete English sentences, numbered 1. 2. 3.; "
-            "if the page has no text points write: This page has no text points.\n"
-            "[Terms]\nList only the English terms that actually appear in the text, "
-            "one per line: • term: explanation in English; "
-            "if none, write: This page has no terms.\n"
-            "No separators between pages, keep the pages consecutive, output nothing else.\n\n"
-            f"{body}"
-        )
-    else:
-        prompt = (
-            f"你是课程「{course_name}」的助教。下面是同一份上课课件 PDF 中第 {page_list} 页提取出的文字"
-            "（可能因排版提取不完整，按能提取的内容理解）。\n"
-            "请为其中每一页分别生成上课注释。每一页都必须严格按以下结构输出：\n"
-            "第一行单独写：【第 X 页】（X 为该页页码）\n"
-            "然后：【本页主旨】\n用一两句中文说明这页在讲什么。\n"
-            "【要点展开】\n把该页要点展开成完整、能听懂的中文句子，用 1. 2. 3. 编号；"
-            "该页没有文字要点就写：本页无文字要点（可能是图表页）。\n"
-            "【英文名词解释】\n只列该页文字中实际出现的英文术语，每条一行：• 英文原词：中文解释；"
-            "没有就写：本页无英文术语。\n"
-            "页与页之间不要加分隔符，直接连续输出，不要输出任何其他内容。\n\n"
-            f"{body}"
-        )
+    prompt = (
+        f"你是课程「{course_name}」的助教。下面是同一份上课课件 PDF 中第 {page_list} 页提取出的文字"
+        "（可能因排版提取不完整，按能提取的内容理解）。\n"
+        "**原文可能是英语、西班牙语或中文**。无论原文是什么语言，注释一律用中文写：\n"
+        "外语内容要读懂之后用中文讲清楚，不要逐字硬翻，也不要保留整段外语原文。\n"
+        "请为其中每一页分别生成上课注释，每一页都必须严格按以下结构输出：\n"
+        "第一行单独写：【第 X 页】（X 为该页页码）\n"
+        "然后：【本页主旨】\n用一两句中文说明这页在讲什么。\n"
+        "【要点展开】\n把该页要点展开成完整、能听懂的中文句子，用 1. 2. 3. 编号；"
+        "原文是外语的直接译成中文表达；该页没有文字要点就写：本页无文字要点（可能是图表页）。\n"
+        "【原文术语】\n只列该页文字中实际出现的外语术语（英语或西班牙语都算），"
+        "每条一行：• 原词（语种）：中文解释；没有就写：本页无外语术语。\n"
+        "页与页之间不要加分隔符，直接连续输出，不要输出任何其他内容。\n\n"
+        f"{body}"
+    )
     cfg = load_config()
     client = _client()
     # 输出预算：每页注释约 900 token，再加余量。原来固定 2400 在 8 页批次会被截断，

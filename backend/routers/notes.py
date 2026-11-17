@@ -44,17 +44,20 @@ def _why(e: Exception) -> str:
     return f"{type(c).__name__}: {str(c)[:140]}" if c else "无"
 
 
-NOTE_LANGS = ("zh", "en", "es")
+# 注释只出中文：原文不管是英语还是西班牙语，都译成中文讲解。
+# 参数 lang 保留只是为了兼容旧请求（旧前端/旧书签还会带 ?lang=es），
+# 一律归一到 zh —— 不再产生 en / es 两套注释。
+NOTE_LANGS = ("zh",)
 
 
 def _norm_lang(lang: str) -> str:
-    """归一到支持的语言码；不认识的按中文处理（默认值永远是中文）。"""
-    lang = (lang or "zh").strip().lower()
-    return lang if lang in NOTE_LANGS else "zh"
+    """固定返回中文。外语注释已停用（用户要的是「外语原文 + 中文注释」）。"""
+    return "zh"
 
 
 def _status_key(mid: str, lang: str) -> str:
-    """任务状态按「资料 + 语言」分开存 —— 中文和西语两轮生成不能互相顶掉。"""
+    """任务状态按「资料 + 语言」分开存。语言现在恒为 zh，key 格式保留
+    （老数据里还有 :en / :es 的键，不能因为格式变了就读不出来）。"""
     return f"{mid}:{lang}"
 
 
@@ -63,7 +66,7 @@ def _fetch_batch(course_name: str, batch: list, lang: str = "zh"):
     last = None
     for i in range(RETRY_PER_BATCH):
         try:
-            return core.generate_page_notes_batch(course_name, batch, lang=lang), None
+            return core.generate_page_notes_batch(course_name, batch), None
         except Exception as e:  # noqa: BLE001
             last = e
             if not _is_retryable(e):
