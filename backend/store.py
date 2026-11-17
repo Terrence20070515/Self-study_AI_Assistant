@@ -213,6 +213,19 @@ def init_db():
             )"""
         )
         c.execute("CREATE INDEX IF NOT EXISTS idx_asm_attempt ON asm_attempts(course_id, task_key)")
+        # 专注记录：番茄钟以前只往 localStorage 写一个「今天几个」，
+        # 没有课程、没有时长、跨天查不了，等于这个数字没法用来做任何分析。
+        # 只记**完整走完**的（中途重置算放弃，不入库），否则误开的计时会污染统计。
+        c.execute(
+            """CREATE TABLE IF NOT EXISTS focus_sessions(
+                id INTEGER PRIMARY KEY AUTOINCREMENT,
+                course_id TEXT NOT NULL DEFAULT '',
+                minutes INTEGER NOT NULL DEFAULT 0,
+                kind TEXT NOT NULL DEFAULT 'focus',
+                at REAL NOT NULL
+            )"""
+        )
+        c.execute("CREATE INDEX IF NOT EXISTS idx_focus_at ON focus_sessions(at)")
         # 覆盖率台账：记录每个知识点单元是否出过题。
         # unit_key 由「资料 + 页 + 段号」拼成（见 core.build_knowledge_units）——
         # 只要资料内容不变，同一页永远算出同一个 key，覆盖率才能跨次累积。
@@ -1147,6 +1160,66 @@ def weak_points(limit: int = 8) -> dict:
     # 正确率低的优先；同率时错题多的优先（同样 50%，错 12 道比错 2 道更值得补）
     items.sort(key=lambda x: (x["accuracy"], -x["wrong"]))
     return {"items": items[:limit], "low_sample": low, "min_sample": MIN_SAMPLE}
+
+
+# ---------- 专注记录（番茄钟） ----------
+
+def add_focus_session(course_id: str, minutes: int, kind: str = "focus") -> dict:
+    """记一次完整走完的番茄。中途重置的不该调到这里。"""
+    kind = "break" if str(kind).lower() == "break" else "focus"
+    minutes = max(1, min(int(minutes or 0), 24 * 60))
+    with _conn() as c:
+        cur = c.execute(
+            "INSERT INTO focus_sessions(course_id, minutes, kind, at) VALUES(?,?,?,?)",
+            (course_id or "", minutes, kind, now()),
+        )
+        return {"id": cur.lastrowid, "course_id": course_id or "",
+                "minutes": minutes, "kind": kind}
+
+
+def focus_summary(days: int = 7) -> dict:
+    """今日 / 近 N 天的专注量，按课程拆开。
+
+    休息不计入学习时长（单独计数）—— 它反映的是节奏，不是投入。
+    """
+    since = now() - max(1, int(days)) * 86400
+    # 本地日界。不能用 `now() - now() % 86400` —— 那是 UTC 零点，
+    # 在东八区等于本地 08:00，「今天」会从早上八点开始算。
+    import datetime as _dt
+    today_start = _dt.datetime.now().replace(
+        hour=0, minute=0, second=0, microsecond=0).timestamp()
+    with _conn() as c:
+        t = c.execute(
+            "SELECT COUNT(*) AS n, COALESCE(SUM(minutes),0) AS m FROM focus_sessions"
+            " WHERE kind='focus' AND at >= ?", (today_start,)
+        ).fetchone()
+        rows = c.execute(
+            "SELECT f.course_id, COALESCE(co.code,'') AS course_code,"
+            " COALESCE(co.name,'') AS course_name,"
+            " COUNT(*) AS n, SUM(f.minutes) AS m"
+            " FROM focus_sessions f LEFT JOIN courses co ON co.id = f.course_id"
+            " WHERE f.kind='focus' AND f.at >= ?"
+            " GROUP BY f.course_id ORDER BY m DESC", (since,)
+        ).fetchall()
+        br = c.execute(
+            "SELECT COUNT(*) AS n FROM focus_sessions WHERE kind='break' AND at >= ?",
+            (since,),
+        ).fetchone()
+    by_course = [{
+        "course_id": r["course_id"] or "",
+        "course_code": r["course_code"] or "",
+        "course_name": r["course_name"] or "",
+        "minutes": int(r["m"] or 0),
+        "count": r["n"],
+    } for r in rows]
+    return {
+        "days": max(1, int(days)),
+        "today_count": t["n"],
+        "today_minutes": int(t["m"] or 0),
+        "week_minutes": sum(x["minutes"] for x in by_course),
+        "week_by_course": by_course,
+        "break_count": br["n"],
+    }
 
 
 # ---------- 成绩构成 ----------

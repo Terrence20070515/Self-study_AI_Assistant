@@ -243,6 +243,11 @@ $("#btn-save-course").onclick = async () => {
 
 async function openCourse(id) {
   courseState.currentId = id;
+  // 番茄钟默认绑到这门课 —— 除非用户在主页手动改过（manual）
+  if (typeof pomo !== "undefined" && !pomo.manual) {
+    pomo.courseId = id;
+    storage.set("pomo-course", id);
+  }
   materialState.selected.clear();
   $("#sel-all").checked = false;
   // 重置筛选与编辑状态：防止上一次的标签/搜索残留把列表“清空”

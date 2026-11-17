@@ -4,11 +4,16 @@ function showHome() {
   showView("home");
   renderDashboard();
   renderQuote();          // 每次进主页换一句
+  renderPomoCourse();
+  loadFocusSummary();
 }
 
 async function renderDashboard() {
   try {
     if (!courseState.list.length) await loadCourses();
+    // 课程是异步加载的：showHome 里第一次 renderPomoCourse 时列表还是空的，
+    // 下拉里只有「不指定」。加载完必须再填一次，否则要等下次进主页才正常。
+    renderPomoCourse();
     const [mats, todos] = await Promise.all([api("/api/materials/all"), api("/api/todos")]);
     const courses = courseState.list.filter(c => c.code !== "UNFILED").length;
     $("#dash-courses").textContent = courses;
@@ -177,7 +182,14 @@ $("#home-quote-next").onclick = guard("换一句", renderQuote);
 const POMO_FOCUS = 25 * 60;
 const POMO_BREAK = 5 * 60;
 const POMO_RING = 2 * Math.PI * 55;               // 与 SVG 里 r=55 对应
-const pomo = { mode: "focus", left: POMO_FOCUS, running: false, timer: null };
+const pomo = {
+  mode: "focus", left: POMO_FOCUS, running: false, timer: null,
+  // 这个番茄记在哪门课下。番茄钟只在主页，所以「当前课程」取的是
+  // 最近一次进过的课程（openCourse 会写），不是此刻的视图 —— 主页上
+  // 没有「当前课程」这个概念。用户改过之后就按他改的走（manual）。
+  courseId: storage.get("pomo-course") || "",
+  manual: false,
+};
 
 function pomoTodayKey() {
   const d = new Date();
@@ -215,13 +227,59 @@ function pomoFinish() {
   if (pomo.mode === "focus") {
     const n = (Number(storage.get(pomoTodayKey())) || 0) + 1;
     storage.set(pomoTodayKey(), String(n));
+    // 只有完整走完的才落库：中途按重置算放弃，不计入学习时长
+    recordFocus(pomo.courseId, Math.round(POMO_FOCUS / 60), "focus");
     toast(`专注结束，完成第 ${n} 个番茄。休息 5 分钟`);
     pomo.mode = "break"; pomo.left = POMO_BREAK;
   } else {
+    recordFocus(pomo.courseId, Math.round(POMO_BREAK / 60), "break");
     toast("休息结束，开始下一个番茄");
     pomo.mode = "focus"; pomo.left = POMO_FOCUS;
   }
   renderPomo();
+}
+
+function recordFocus(courseId, minutes, kind) {
+  // 记录失败不该打断计时体验：静默失败，下次汇总自然少一条
+  api("/api/focus", {
+    method: "POST", headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({ course_id: courseId || "", minutes, kind }),
+  }).then(() => loadFocusSummary()).catch(() => {});
+}
+
+/* 课程下拉：进过课程就自动带出，随时可改 */
+function renderPomoCourse() {
+  const sel = $("#pomo-course");
+  if (!sel) return;
+  const list = courseState.list.filter((c) => c.code !== "UNFILED");
+  const cur = pomo.courseId;
+  sel.innerHTML = `<option value="">不指定课程</option>`
+    + list.map((c) => `<option value="${esc(c.id)}">${esc(c.code)}</option>`).join("");
+  sel.value = list.some((c) => c.id === cur) ? cur : "";
+  if (!sel.dataset.bound) {
+    sel.dataset.bound = "1";
+    sel.onchange = () => {
+      pomo.courseId = sel.value;
+      pomo.manual = true;                 // 用户改过之后，不再被「上次进的课」覆盖
+      storage.set("pomo-course", sel.value);
+    };
+  }
+}
+
+async function loadFocusSummary() {
+  const el = $("#pomo-week");
+  if (!el) return;
+  let d;
+  try { d = await api("/api/focus/summary?days=7"); } catch (e) { el.textContent = ""; return; }
+  const hrs = (m) => (m >= 60 ? (m / 60).toFixed(1).replace(/\.0$/, "") + "h" : m + "m");
+  const parts = (d.week_by_course || [])
+    .filter((x) => x.minutes > 0)
+    .slice(0, 3)
+    .map((x) => `${x.course_code || "未指定"} ${hrs(x.minutes)}`);
+  el.innerHTML = d.week_minutes
+    ? `<span class="pomo-week-sum">本周 ${hrs(d.week_minutes)}</span>`
+      + `<span class="pomo-week-list">${parts.map(esc).join(" · ")}</span>`
+    : "";
 }
 
 function pomoTick() {

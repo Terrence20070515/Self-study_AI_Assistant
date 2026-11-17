@@ -4,7 +4,7 @@
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
 <title>Self-Learning Space</title>
-<link rel="stylesheet" href="main.css?v=20261118e">
+<link rel="stylesheet" href="main.css?v=20261118f">
 </head>
 <body>
 <div class="layout">
@@ -61,10 +61,15 @@
                 <span id="pomo-mode">专注</span>
               </div>
             </div>
+            <!-- 绑定课程：进课程页时自动带出，可随时改 -->
+            <select id="pomo-course" class="pomo-course" title="这个番茄记在哪门课下">
+              <option value="">不指定课程</option>
+            </select>
             <div class="pomo-actions">
               <button id="pomo-start" class="btn btn-primary btn-sm">开始</button>
               <button id="pomo-reset" class="btn btn-ghost btn-sm">重置</button>
             </div>
+            <div id="pomo-week" class="pomo-week"></div>
           </div>
         </div>
       </section>
@@ -688,14 +693,14 @@
     }, 3000);
   });
 </script>
-<script src="core.js?v=20261118e"></script>
-  <script src="views-home.js?v=20261118e"></script>
-  <script src="views-course.js?v=20261118e"></script>
-  <script src="views-quiz.js?v=20261118e"></script>
-  <script src="views-quizpage.js?v=20261118e"></script>
-  <script src="views-asm.js?v=20261118e"></script>
-  <script src="views-wrong.js?v=20261118e"></script>
-  <script src="views-tools.js?v=20261118e"></script>
-  <script src="main.js?v=20261118e"></script>
+<script src="core.js?v=20261118f"></script>
+  <script src="views-home.js?v=20261118f"></script>
+  <script src="views-course.js?v=20261118f"></script>
+  <script src="views-quiz.js?v=20261118f"></script>
+  <script src="views-quizpage.js?v=20261118f"></script>
+  <script src="views-asm.js?v=20261118f"></script>
+  <script src="views-wrong.js?v=20261118f"></script>
+  <script src="views-tools.js?v=20261118f"></script>
+  <script src="main.js?v=20261118f"></script>
 </body>
 </html>

@@ -212,3 +212,19 @@ def api_weak_points(limit: int = 8):
     并进错题本顶部，不单开页面 —— 两者数据同源，分开要来回切。
     """
     return store.weak_points(limit=max(1, min(int(limit or 8), 30)))
+
+
+@router.get("/api/focus/summary")
+def api_focus_summary(days: int = 7):
+    """专注量：今日 + 近 N 天按课程拆分（番茄钟绑定课程后的产出）。"""
+    return store.focus_summary(days=max(1, min(int(days or 7), 90)))
+
+
+@router.post("/api/focus")
+def api_add_focus(body: dict):
+    """记一次完整走完的番茄。前端只在计时归零时调 —— 中途重置不入库。"""
+    return store.add_focus_session(
+        str(body.get("course_id") or ""),
+        int(body.get("minutes") or 0),
+        str(body.get("kind") or "focus"),
+    )
