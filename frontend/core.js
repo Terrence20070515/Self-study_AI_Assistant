@@ -91,6 +91,9 @@ const quizState = {
 };
 const libraryState = {
   selected: new Set(), tag: "", search: "", editMode: false,
+  // 内容命中（正文搜索）和文件名过滤是两条独立查询，互不覆盖：
+  // 搜「死锁」时文件名里可能一个都没有，但正文命中十几处，那才是想找的。
+  contentHits: [], contentMode: "", contentPartial: false, contentSeq: 0,
 };
 
 // ---------- 基础工具 ----------

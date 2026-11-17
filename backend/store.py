@@ -913,6 +913,113 @@ def list_pending_batches(course_id: str, limit: int = 30) -> dict:
     return {"total": len(rows), "batch_count": len(out), "batches": out[:limit]}
 
 
+# ---------- 全库内容搜索（词面） ----------
+# 语义那半条在 core.search_content_semantic —— 它要跑 embedding，
+# 放这里会让 store 依赖模型调用，而 store 现在还是纯数据层。
+
+_SNIPPET_PAD = 70      # 片段左右各取多少字
+_MAX_SCAN = 3000       # LIKE 最多捞多少块回来打分（全库 16767 块，通常只命中几十到几百）
+
+
+def _search_terms(query: str) -> list[str]:
+    """把查询拆成检索词。
+
+    中文不切词（本机没有分词器），按空格与标点切；
+    切不动的整串当一个词，靠 LIKE 子串匹配也能命中中文短语。
+    """
+    raw = re.split(r"[\s,，.。;；:：!！?？、/\\|()（）\[\]【】<>《》\"'“”‘’]+", query or "")
+    out, seen = [], set()
+    for t in raw:
+        t = t.strip()
+        if not t:
+            continue
+        low = t.lower()
+        if low in seen:
+            continue
+        seen.add(low)
+        out.append(t)
+    return out[:8]          # 词太多等于要求「全部命中」，实测 3 个以内最好用
+
+
+def _make_snippet(text: str, terms: list[str]) -> tuple[str, list[str]]:
+    """截命中词附近的一段，并返回真正出现过的词（前端用来高亮）。"""
+    low = (text or "").lower()
+    hit_at, hit_terms = -1, []
+    for t in terms:
+        i = low.find(t.lower())
+        if i >= 0:
+            hit_terms.append(t)
+            if hit_at < 0 or i < hit_at:
+                hit_at = i
+    if hit_at < 0:
+        return (text or "")[:_SNIPPET_PAD * 2], hit_terms
+    lo = max(0, hit_at - _SNIPPET_PAD)
+    hi = min(len(text), hit_at + _SNIPPET_PAD)
+    frag = text[lo:hi].replace("\n", " ")
+    return ("…" if lo > 0 else "") + frag + ("…" if hi < len(text) else ""), hit_terms
+
+
+def search_content_word(query: str, limit: int = 40) -> dict:
+    """全库词面搜索：命中 `chunks.text`，按「命中词数 → 出现次数」排序。
+
+    同一页只留一条 —— 滑窗把一页切成多块，同页会重复命中。
+    先要求所有词都命中；全不中再放宽成「命中任意词」并标 partial，
+    否则搜「外键 级联」这种多词查询会直接空手而归。
+    """
+    terms = _search_terms(query)
+    if not terms:
+        return {"hits": [], "partial": False, "scanned": 0}
+
+    def run(and_mode: bool) -> list:
+        joiner = " AND " if and_mode else " OR "
+        where = joiner.join(["c.text LIKE ?"] * len(terms))
+        sql = (
+            "SELECT c.material_id, c.page, c.ord, c.text, m.orig_name, m.ext, m.course_id"
+            " FROM chunks c JOIN materials m ON m.id = c.material_id"
+            " WHERE m.deleted = 0 AND (" + where + ")"
+            " LIMIT ?"
+        )
+        params = [f"%{t}%" for t in terms] + [_MAX_SCAN]
+        with _conn() as conn:
+            return conn.execute(sql, params).fetchall()
+
+    rows = run(True)
+    partial = False
+    if not rows:
+        rows, partial = run(False), True
+    if not rows:
+        return {"hits": [], "partial": False, "scanned": 0}
+
+    scored = []
+    for r in rows:
+        low = (r["text"] or "").lower()
+        # 命中词数优先：全中的一条永远排在只中一个词的前面
+        kinds = sum(1 for t in terms if t.lower() in low)
+        count = sum(low.count(t.lower()) for t in terms)
+        scored.append((kinds, count, r))
+    scored.sort(key=lambda x: (-x[0], -x[1]))
+
+    hits, seen_pages = [], set()
+    for kinds, _count, r in scored:
+        key = (r["material_id"], r["page"])
+        if key in seen_pages:
+            continue
+        seen_pages.add(key)
+        snippet, hit_terms = _make_snippet(r["text"], terms)
+        hits.append({
+            "material_id": r["material_id"],
+            "orig_name": r["orig_name"],
+            "ext": r["ext"] or "pdf",
+            "page": r["page"],
+            "snippet": snippet,
+            "terms": hit_terms,
+            "matched": kinds,
+        })
+        if len(hits) >= limit:
+            break
+    return {"hits": hits, "partial": partial, "scanned": len(rows)}
+
+
 # ---------- 错题本（跨课程） ----------
 
 def _question_page(q: dict) -> int | None:

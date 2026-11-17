@@ -500,3 +500,27 @@ def api_move_material(mid: str, body: dict):
         raise HTTPException(404, "目标课程不存在")
     store.move_material(mid, target)
     return {"ok": True}
+
+
+@router.get("/api/search/content")
+def api_search_content(q: str = "", mode: str = "word", limit: int = 40):
+    """全库内容搜索。
+
+    mode=word     词面匹配，毫秒级、零成本，输入时就调
+    mode=semantic 语义检索，一次 embedding（本机模型，不走 API），按回车才调
+
+    词面搜不到时前端会把提示换成「按 Enter 试语义」；
+    语义模式不返回 `terms`（没法高亮），改返回相关度分。
+    """
+    q = (q or "").strip()
+    if len(q) < 2:
+        return {"mode": mode, "hits": [], "partial": False, "scanned": 0}
+    limit = max(1, min(int(limit or 40), 100))
+
+    if mode == "semantic":
+        hits = core.search_content_semantic(q, limit=limit)
+        return {"mode": "semantic", "hits": hits, "partial": False, "scanned": len(hits)}
+
+    res = store.search_content_word(q, limit=limit)
+    res["mode"] = "word"
+    return res

@@ -4,7 +4,7 @@
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
 <title>Self-Learning Space</title>
-<link rel="stylesheet" href="main.css?v=20261118c">
+<link rel="stylesheet" href="main.css?v=20261118d">
 </head>
 <body>
 <div class="layout">
@@ -400,6 +400,15 @@
           <label class="sel-all hidden" id="lib-sel-all-wrap"><input type="checkbox" id="lib-sel-all"> 全选</label>
           <button class="chip active" data-tag="">全部</button>
         </div>
+        <!-- 全库正文搜索：上面那个输入框同时驱动「文件名过滤」和这里 -->
+        <div id="lib-content" class="lib-content hidden">
+          <div class="lib-content-head">
+            <b>内容命中</b>
+            <span id="lib-content-sum" class="muted"></span>
+            <span id="lib-content-hint" class="lib-content-hint"></span>
+          </div>
+          <div id="lib-content-list" class="lib-content-list"></div>
+        </div>
         <div id="library-list" class="material-list"></div>
       </section>
     </div>
@@ -679,14 +688,14 @@
     }, 3000);
   });
 </script>
-<script src="core.js?v=20261118c"></script>
-  <script src="views-home.js?v=20261118c"></script>
-  <script src="views-course.js?v=20261118c"></script>
-  <script src="views-quiz.js?v=20261118c"></script>
-  <script src="views-quizpage.js?v=20261118c"></script>
-  <script src="views-asm.js?v=20261118c"></script>
-  <script src="views-wrong.js?v=20261118c"></script>
-  <script src="views-tools.js?v=20261118c"></script>
-  <script src="main.js?v=20261118c"></script>
+<script src="core.js?v=20261118d"></script>
+  <script src="views-home.js?v=20261118d"></script>
+  <script src="views-course.js?v=20261118d"></script>
+  <script src="views-quiz.js?v=20261118d"></script>
+  <script src="views-quizpage.js?v=20261118d"></script>
+  <script src="views-asm.js?v=20261118d"></script>
+  <script src="views-wrong.js?v=20261118d"></script>
+  <script src="views-tools.js?v=20261118d"></script>
+  <script src="main.js?v=20261118d"></script>
 </body>
 </html>

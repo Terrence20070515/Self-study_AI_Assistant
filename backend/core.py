@@ -566,6 +566,59 @@ def retrieve(course_id: str, question: str, cross_course: bool = False) -> list[
     return _expand_context(results, limit=cfg["top_k"])
 
 
+def search_content_semantic(query: str, limit: int = 30) -> list[dict]:
+    """全库语义搜索：只给「命中的那一块」，不做上下文扩展。
+
+    和 retrieve() 的顺序不同：retrieve 是给模型喂上下文，要把命中块补成完整段落
+    （_expand_context，一页可能拼到几千字）；这里是把结果摆给人看，
+    每条只要一小段 + 页码，所以要原始命中块、并且要多得多的条数。
+
+    打分公式、阈值、粗筛候选数与 retrieve 保持一致 —— 两处若漂移，
+    同一个问题在问答里和在搜索里给出不同结果，用户会觉得工具精神分裂。
+    """
+    cfg = load_config()
+    qvec = embed_texts([_expand_query(query)])[0]
+    rows = store.all_chunks_with_vectors("")
+    if not rows:
+        return []
+
+    mat = np.array([np.frombuffer(r["embedding"], dtype=np.float32) for r in rows])
+    sims = mat @ qvec
+    order = np.argsort(-sims)[:KW_CANDIDATES]
+    tokens = _keyword_tokens(query)
+
+    scored = []
+    for idx in order:
+        vs = float(sims[idx])
+        kw = _keyword_score(tokens, rows[idx]["text"])
+        score = vs * VEC_WEIGHT + kw * KW_WEIGHT
+        if score < cfg["threshold"]:
+            continue
+        scored.append((score, vs, kw, rows[idx]))
+    scored.sort(key=lambda x: -x[0])
+
+    out, seen_pages = [], set()
+    for score, vs, kw, r in scored:
+        key = (r["material_id"], r["page"])
+        if key in seen_pages:      # 同一页只留最高分那条，理由同 retrieve
+            continue
+        seen_pages.add(key)
+        text = (r["text"] or "").replace("\n", " ").strip()
+        out.append({
+            "material_id": r["material_id"],
+            "orig_name": r["orig_name"],
+            "ext": r.get("ext") or "pdf",
+            "page": r["page"],
+            "snippet": text[:200] + ("…" if len(text) > 200 else ""),
+            "terms": [],
+            "score": round(score, 3),
+            "course_code": r.get("course_code") or "",
+        })
+        if len(out) >= limit:
+            break
+    return out
+
+
 CONTEXT_NEIGHBORS = 1       # 命中块前后各带几块（1 → 约 3 块拼成完整一段）
 CONTEXT_MAX_CHARS = 16000   # 扩展后总字数上限，防止把整章塞进上下文
 

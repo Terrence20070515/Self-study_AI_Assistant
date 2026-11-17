@@ -1146,3 +1146,44 @@ button.wb-pick:disabled { cursor: default; opacity: .75; }
   white-space: nowrap; overflow: hidden; text-overflow: ellipsis;
 }
 .pending-go { flex: 0 0 auto; }
+
+/* ===== 全库内容搜索（资料总库） ===== */
+.lib-content {
+  margin: 10px 0 14px; padding: 12px 14px;
+  border: 1px solid var(--border); border-radius: 10px;
+  background: var(--pre-bg);
+}
+.lib-content-head {
+  display: flex; align-items: baseline; gap: 10px; flex-wrap: wrap;
+  margin-bottom: 8px;
+}
+.lib-content-head b { font-size: 12.5px; letter-spacing: .3px; }
+.lib-content-head .muted { font-size: 11.5px; }
+.lib-mode {
+  font-size: 10.5px; padding: 1px 6px; border-radius: 4px;
+  background: var(--accent-weak); color: var(--accent);
+  border: 1px solid var(--accent);
+}
+.lib-mode.word { background: transparent; color: var(--text-2); border-color: var(--border); }
+.lib-partial { font-size: 11px; color: var(--warn-fg); }
+.lib-content-hint { margin-left: auto; }
+.lib-enter-tip { font-size: 11px; color: var(--text-2); }
+.lib-enter-tip kbd {
+  padding: 1px 5px; border-radius: 4px; font-size: 10.5px;
+  background: var(--surface); border: 1px solid var(--border);
+  font-family: ui-monospace, Menlo, monospace;
+}
+
+.lib-content-list { display: flex; flex-direction: column; gap: 6px; max-height: 340px; overflow-y: auto; }
+.lib-hit {
+  display: block; width: 100%; text-align: left; cursor: pointer;
+  padding: 8px 10px; border-radius: 7px;
+  background: var(--surface); border: 1px solid transparent;
+  color: var(--text); font-family: inherit;
+}
+.lib-hit:hover { border-color: var(--accent); }
+.lib-hit-head { display: flex; align-items: baseline; gap: 8px; margin-bottom: 3px; }
+.lib-hit-head b { font-size: 12px; font-weight: 600; }
+.lib-hit-head span { font-size: 11px; color: var(--text-2); margin-left: auto; white-space: nowrap; }
+.lib-hit-body { font-size: 12px; line-height: 1.65; color: var(--text-2); }
+.lib-hit-body mark { background: var(--warn-bg, rgba(220,180,60,.28)); color: var(--text); padding: 0 1px; border-radius: 2px; }

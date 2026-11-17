@@ -718,6 +718,7 @@ function openLibrary() {
   showView("library");
   libraryState.tag = ""; libraryState.search = ""; libraryState.editMode = false; libraryState.selected.clear();
   $("#lib-search").value = "";
+  clearLibContent();
   $("#btn-lib-edit").textContent = "编辑";
   $("#btn-lib-edit").classList.remove("btn-primary"); $("#btn-lib-edit").classList.add("btn-outline");
   $("#btn-lib-export").classList.add("hidden");
@@ -769,9 +770,117 @@ $("#lib-tag-filter").addEventListener("click", (e) => {
 });
 let libSearchTimer;
 $("#lib-search").addEventListener("input", (e) => {
+  const q = e.target.value.trim();
   clearTimeout(libSearchTimer);
-  libSearchTimer = setTimeout(() => { libraryState.search = e.target.value; renderLibrary(); }, 250);
+  libSearchTimer = setTimeout(() => {
+    libraryState.search = e.target.value;
+    renderLibrary();          // 文件名过滤
+    searchLibContent(q, "word");
+  }, 250);
 });
+
+// Enter 才走语义检索：一次 embedding 虽然走本机模型不进 API，
+// 但全库 1.6 万个向量要算一遍（约 0.9s），边打字边触发会一顿一顿的
+$("#lib-search").addEventListener("keydown", (e) => {
+  if (e.key !== "Enter") return;
+  e.preventDefault();
+  const q = e.target.value.trim();
+  if (q.length < 2) return;
+  clearTimeout(libSearchTimer);
+  libraryState.search = e.target.value;
+  renderLibrary();
+  searchLibContent(q, "semantic");
+});
+
+async function searchLibContent(q, mode) {
+  const box = $("#lib-content"), list = $("#lib-content-list");
+  if (!box || !list) return;
+  if (!q || q.length < 2) {
+    libraryState.contentHits = []; libraryState.contentMode = "";
+    box.classList.add("hidden"); list.innerHTML = "";
+    return;
+  }
+
+  // 请求可能乱序返回（输入快时后发的先回），用序号丢弃过期结果
+  const seq = ++libraryState.contentSeq;
+  box.classList.remove("hidden");
+  if (mode === "semantic") {
+    $("#lib-content-sum").textContent = "语义检索中…";
+    $("#lib-content-hint").textContent = "";
+  }
+
+  let data;
+  try {
+    // 语义只取 20 条：40 条里后一半相关度很低，翻下去只是噪音
+    const cap = mode === "semantic" ? 20 : 30;
+    data = await api(`/api/search/content?q=${encodeURIComponent(q)}&mode=${mode}&limit=${cap}`);
+  } catch (err) {
+    $("#lib-content-sum").textContent = "搜索失败";
+    $("#lib-content-hint").textContent = "";
+    return;
+  }
+  if (seq !== libraryState.contentSeq) return;   // 已有更新的请求在跑
+ 
+  libraryState.contentHits = data.hits || [];
+  libraryState.contentMode = data.mode || mode;
+  libraryState.contentPartial = !!data.partial;
+  renderLibContent(q);
+}
+
+function renderLibContent(q) {
+  const box = $("#lib-content"), list = $("#lib-content-list");
+  const hits = libraryState.contentHits;
+  const mode = libraryState.contentMode;
+
+  const tag = mode === "semantic"
+    ? `<span class="lib-mode">语义</span>`
+    : `<span class="lib-mode word">词面</span>`;
+
+  if (!hits.length) {
+    $("#lib-content-sum").innerHTML = tag + `<span class="muted">正文里没搜到「${esc(q)}」</span>`;
+    // 词面空手的提示——这正是语义检索存在的理由（换了说法也能中）
+    $("#lib-content-hint").innerHTML = mode === "word"
+      ? `<span class="lib-enter-tip">换个说法试试：按 <kbd>Enter</kbd> 走语义搜索</span>`
+      : "";
+    list.innerHTML = "";
+    return;
+  }
+
+  $("#lib-content-sum").innerHTML = tag + `<span class="muted">${hits.length} 处</span>`
+    + (libraryState.contentPartial ? `<span class="lib-partial">多词未全命中，按任一词匹配</span>` : "");
+  $("#lib-content-hint").innerHTML = mode === "word"
+    ? `<span class="lib-enter-tip">按 <kbd>Enter</kbd> 走语义搜索</span>` : "";
+
+  list.innerHTML = "";
+  for (const h of hits) {
+    const row = document.createElement("button");
+    row.className = "lib-hit";
+    const terms = (h.terms || []).filter(Boolean);
+    let body = esc(h.snippet || "");
+    for (const t of terms) {
+      const safe = esc(t).replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
+      if (!safe) continue;
+      body = body.replace(new RegExp(safe, "gi"), (m) => `<mark>${m}</mark>`);
+    }
+    row.innerHTML =
+      `<div class="lib-hit-head"><b>${esc(h.orig_name || "")}</b>`
+      + `<span>p.${h.page}</span></div>`
+      + `<div class="lib-hit-body">${body}</div>`;
+    row.onclick = () => openViewer(h.material_id, h.page, h.orig_name, h.ext);
+    list.appendChild(row);
+  }
+}
+
+// 离开 / 重进总库时清掉上一次的命中，免得旧结果挂在新搜索框下面
+function clearLibContent() {
+  libraryState.contentHits = [];
+  libraryState.contentMode = "";
+  libraryState.contentSeq++;     // 让在途请求的结果失效
+  const box = $("#lib-content"), list = $("#lib-content-list");
+  if (box) box.classList.add("hidden");
+  if (list) list.innerHTML = "";
+}
+
 $("#btn-lib-edit").onclick = () => {
   libraryState.editMode = !libraryState.editMode;
   if (!libraryState.editMode) { libraryState.selected.clear(); $("#lib-sel-all").checked = false; }
