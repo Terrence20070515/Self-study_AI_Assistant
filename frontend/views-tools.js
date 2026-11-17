@@ -723,6 +723,7 @@ function openLibrary() {
   $("#btn-lib-edit").classList.remove("btn-primary"); $("#btn-lib-edit").classList.add("btn-outline");
   $("#btn-lib-export").classList.add("hidden");
   $("#btn-lib-del-selected").classList.add("hidden");
+  $("#btn-lib-batch-tag").classList.add("hidden");
   $("#lib-sel-all-wrap").classList.add("hidden");
   document.querySelectorAll("#lib-tag-filter .chip").forEach(c => c.classList.toggle("active", c.dataset.tag === ""));
   renderLibrary();
@@ -759,7 +760,14 @@ function updateLibBtns() {
   const ex = $("#btn-lib-export"), del = $("#btn-lib-del-selected");
   ex.disabled = n === 0; ex.textContent = n ? `导出（${n}）` : "导出";
   del.disabled = n === 0; del.textContent = n ? `删除（${n}）` : "删除";
+  const tg = $("#btn-lib-batch-tag");
+  tg.disabled = n === 0; tg.textContent = n ? `改标签（${n}）` : "改标签";
 }
+
+$("#btn-lib-batch-tag").onclick = guard("批量改标签", () => openTagModal(
+  [...libraryState.selected],
+  async () => { libraryState.selected.clear(); await renderLibrary(); },
+));
 
 $("#lib-tag-filter").addEventListener("click", (e) => {
   const chip = e.target.closest(".chip");
@@ -889,6 +897,7 @@ $("#btn-lib-edit").onclick = () => {
   $("#btn-lib-edit").classList.toggle("btn-outline", !libraryState.editMode);
   $("#btn-lib-export").classList.toggle("hidden", !libraryState.editMode);
   $("#btn-lib-del-selected").classList.toggle("hidden", !libraryState.editMode);
+  $("#btn-lib-batch-tag").classList.toggle("hidden", !libraryState.editMode);
   $("#lib-sel-all-wrap").classList.toggle("hidden", !libraryState.editMode);
   renderLibrary();
 };

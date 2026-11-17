@@ -444,6 +444,25 @@ def get_material(mid: str):
         return dict(r) if r else None
 
 
+def set_material_tags(ids: list, tag: str) -> int:
+    """批量改标签。
+
+    tag 非空 → `tag_locked=1`，后续「AI 整理」不再覆盖人工判断；
+    tag 为空 → 清空并解锁，下次 AI 分析可以重新猜。
+    一次 executemany 写同一个事务，避免半批成功半批失败。
+    """
+    ids = [i for i in (ids or []) if i]
+    if not ids:
+        return 0
+    locked = 0 if not tag else 1
+    with _conn() as c:
+        c.executemany(
+            "UPDATE materials SET tag=?, tag_locked=? WHERE id=? AND deleted=0",
+            [(tag, locked, i) for i in ids],
+        )
+    return len(ids)
+
+
 def list_materials(course_id: str, query: str = "", deleted: int = 0):
     sql = """SELECT m.*, (SELECT COUNT(DISTINCT pn.page) FROM page_notes pn WHERE pn.material_id=m.id) AS notes_count
              FROM materials m WHERE m.course_id=? AND deleted=?"""

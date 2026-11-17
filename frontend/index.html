@@ -310,6 +310,7 @@
               <button id="btn-del-selected" class="btn btn-danger btn-sm hidden">删除</button>
               <button id="btn-export" class="btn btn-outline btn-sm hidden" disabled title="在编辑模式勾选资料后点击">导出</button>
               <button id="btn-move-selected" class="btn btn-outline btn-sm hidden">移动</button>
+              <button id="btn-batch-tag" class="btn btn-outline btn-sm hidden">改标签</button>
               <button id="btn-edit-mode" class="btn btn-outline btn-sm">编辑</button>
               <button id="btn-ai-organize" class="btn btn-ghost btn-sm hidden">AI 整理</button>
               <input id="material-search" class="input input-sm" placeholder="搜索资料名…">
@@ -396,6 +397,7 @@
           <div class="panel-tools">
             <button id="btn-lib-del-selected" class="btn btn-danger btn-sm hidden">删除</button>
             <button id="btn-lib-export" class="btn btn-outline btn-sm hidden" disabled>导出</button>
+            <button id="btn-lib-batch-tag" class="btn btn-outline btn-sm hidden">改标签</button>
             <button id="btn-lib-edit" class="btn btn-outline btn-sm">编辑</button>
             <button id="btn-lib-ai-organize" class="btn btn-ghost btn-sm hidden">AI 整理</button>
             <input id="lib-search" class="input input-sm" placeholder="搜索资料名…">
@@ -503,9 +505,20 @@
   </div>
 </div>
 
-<!-- 设置弹窗 -->
-<div id="modal-settings" class="modal hidden">
+<!-- 批量改标签（编辑模式勾选多份后出现） -->
+<div id="modal-tag" class="modal hidden">
   <div class="modal-card">
+    <h3>批量改标签</h3>
+    <div id="tag-target" class="muted" style="margin-bottom:10px"></div>
+    <div id="tag-choice-list" class="move-course-list"></div>
+    <div class="modal-actions">
+      <button class="btn btn-ghost" data-close>取消</button>
+    </div>
+  </div>
+</div>
+
+<!-- 设置弹窗 -->
+<div id="modal-settings" class="modal hidden">  <div class="modal-card">
     <h3>设置</h3>
     <label class="field"><span>DeepSeek API Key</span>
       <input id="set-key" type="password" class="input" placeholder="sk-…">

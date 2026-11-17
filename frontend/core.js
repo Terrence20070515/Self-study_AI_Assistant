@@ -502,6 +502,11 @@ function updateExportBtn() {
   del.classList.toggle("hidden", !(materialState.editMode || isUnfiled));
   del.disabled = n === 0;
   del.textContent = n ? `删除（${n}）` : "删除";
+  // 改标签跟编辑模式走（未分类里不给，那里本来就要靠 AI 猜课程）
+  const tg = $("#btn-batch-tag");
+  tg.classList.toggle("hidden", !materialState.editMode || isUnfiled);
+  tg.disabled = n === 0;
+  tg.textContent = n ? `改标签（${n}）` : "改标签";
 }
 
 // 编辑模式开关：点「编辑」后才出现勾选框、导出/删除按钮
@@ -561,6 +566,48 @@ function openBulkMoveModal() {
   openModal("#modal-move");
 }
 $("#btn-move-selected").onclick = openBulkMoveModal;
+
+// 批量改标签：课程内和资料总库共用同一个弹窗，只是选中的集合不同
+function openTagModal(ids, onDone) {
+  if (!ids.length) return toast("请先勾选要改标签的资料");
+  $("#tag-target").textContent = `已选 ${ids.length} 份资料`;
+  const box = $("#tag-choice-list");
+  box.innerHTML = "";
+
+  const apply = async (tag) => {
+    try {
+      await api("/api/materials/batch-tag", {
+        method: "POST", headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ ids, tag }),
+      });
+    } catch (err) {
+      toast(`改标签失败：${err.message}`);
+      return;
+    }
+    closeModal("#modal-tag");
+    toast(tag ? `${ids.length} 份资料改为「${tag}」` : `${ids.length} 份资料的标签已清空`);
+    if (onDone) await onDone();
+  };
+
+  for (const t of TAGS) {
+    const btn = document.createElement("button");
+    btn.className = "btn btn-ghost";
+    btn.textContent = t;
+    btn.onclick = () => apply(t);
+    box.appendChild(btn);
+  }
+  const clear = document.createElement("button");
+  clear.className = "btn btn-ghost";
+  clear.textContent = "清空标签";
+  clear.onclick = () => apply("");
+  box.appendChild(clear);
+  openModal("#modal-tag");
+}
+
+$("#btn-batch-tag").onclick = () => openTagModal(
+  [...materialState.selected],
+  async () => { materialState.selected.clear(); await loadMaterials(); },
+);
 
 $("#sel-all").addEventListener("change", (e) => {
   const list = materialState.list.filter(m => !materialState.tag || m.tag === materialState.tag);

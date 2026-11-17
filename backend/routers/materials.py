@@ -78,6 +78,23 @@ def api_update_material(mid: str, body: dict):
     return {"ok": True}
 
 
+@router.post("/api/materials/batch-tag")
+def api_batch_tag(body: dict):
+    """批量改标签：编辑模式下勾选多份，一次设成同一个标签。
+
+    tag 传空串表示「清空」—— 会同时解锁，让「AI 整理」下次能重新判断。
+    前端只在你手动点的时候调，不做任何自动归类。
+    """
+    tag = str(body.get("tag") or "")
+    if tag and tag not in TAGS:
+        raise HTTPException(400, "无效的标签")
+    ids = body.get("ids") or []
+    if not isinstance(ids, list) or not ids:
+        raise HTTPException(400, "没有选中资料")
+    n = store.set_material_tags(ids, tag)
+    return {"ok": True, "updated": n, "tag": tag}
+
+
 @router.get("/api/materials/{mid}/download")
 def api_download_material(mid: str):
     mat = store.get_material(mid)
