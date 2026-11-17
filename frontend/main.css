@@ -1090,3 +1090,43 @@ button.wb-pick:disabled { cursor: default; opacity: .75; }
 .wb-tip { margin-top: 8px; font-size: 11.5px; color: var(--text-2); line-height: 1.6; }
 .wb-tip .ok { color: var(--ok); }
 .wb-tip .bad { color: var(--danger); }
+
+/* ===== 快捷键面板（按 ? 打开）===== */
+.key-help {
+  /* 90 与 .immersive 相同，靠 DOM 顺序才在上面 —— 显式提到 200，
+     保证在阅读器 / 沉浸模式里按 ? 也能盖住它们（但仍低于 999 的重连条） */
+  position: fixed; inset: 0; z-index: 200;
+  display: flex; align-items: center; justify-content: center;
+  background: rgba(0, 0, 0, .42);
+  animation: keyHelpIn .12s ease;
+}
+@keyframes keyHelpIn { from { opacity: 0; } to { opacity: 1; } }
+.key-help-card {
+  width: 420px; padding: 18px 20px 20px;
+  background: var(--surface); border: 1px solid var(--border); border-radius: 12px;
+  box-shadow: 0 12px 40px rgba(0, 0, 0, .45);
+}
+.key-help-head {
+  display: flex; align-items: baseline; gap: 12px; margin-bottom: 14px;
+}
+.key-help-head b { font-size: 14px; color: var(--text); }
+.key-help-head span { font-size: 11.5px; color: var(--text-2); margin-left: auto; }
+.key-help dl {
+  display: grid; grid-template-columns: 148px 1fr; gap: 10px 16px; margin: 0;
+}
+.key-help dt { margin: 0; text-align: right; }
+.key-help dd { margin: 0; font-size: 12.5px; color: var(--text-2); line-height: 1.5; }
+.key-help kbd {
+  display: inline-block; padding: 2px 8px; border-radius: 5px;
+  background: var(--pre-bg); border: 1px solid var(--border);
+  font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
+  font-size: 11.5px; color: var(--text); white-space: nowrap;
+}
+
+/* 从阅读器回到对话时，目标消息闪一下，方便眼睛定位 */
+.msg-flash { animation: msgFlash 1.4s ease; }
+@keyframes msgFlash {
+  0%, 100% { box-shadow: 0 0 0 0 transparent; }
+  25% { box-shadow: 0 0 0 3px var(--accent); }
+  60% { box-shadow: 0 0 0 3px var(--accent-weak); }
+}

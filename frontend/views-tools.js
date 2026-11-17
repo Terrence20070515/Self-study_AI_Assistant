@@ -409,6 +409,12 @@ async function openImmersive(m, startPage = 0) {   // startPage=0 表示接着�
                        scale: 1, fitWidth: true });   // 每份资料默认「适应宽度」
   $("#imm-title").textContent = m.orig_name;
   $("#imm-progress").textContent = "";
+  // 「回到对话」只在本次是从问答引用跳过来时出现。
+  // citeReturnTarget 是「一次性信号」：这里读完立刻清空，
+  // 否则下次从资料库直接打开同一份 PDF，也会莫名其妙冒出这个按钮。
+  imm.backTarget = (citeReturnTarget && citeReturnTarget.isConnected) ? citeReturnTarget : null;
+  citeReturnTarget = null;
+  $("#imm-back-chat").classList.toggle("hidden", !imm.backTarget);
   immApplyCols();                                    // 恢复上次的栏折叠状态
   $("#imm-total").textContent = "";
   $("#immersive").classList.remove("hidden");
@@ -528,6 +534,21 @@ $("#imm-toggle-toc").onclick = guard("切换目录栏", () => immToggleCol("toc"
 $("#imm-toggle-notes").onclick = guard("切换注释栏", () => immToggleCol("notes"));
 $("#imm-toc-hide").onclick = guard("收起目录栏", () => immToggleCol("toc"));
 $("#imm-notes-hide").onclick = guard("收起右侧栏", () => immToggleCol("notes"));
+
+// 从引用跳过来之后回到那条问答：关阅读器 + 把消息滚到视口中间并闪一下。
+// 用 imm.backTarget 而不是全局 citeReturnTarget —— 后者在打开时已被消费清空。
+$("#imm-back-chat").onclick = guard("回到对话", () => {
+  const target = imm.backTarget;
+  closeImmersive();
+  if (target && target.isConnected) {
+    target.scrollIntoView({ block: "center", behavior: "smooth" });
+    target.classList.add("msg-flash");
+    setTimeout(() => target.classList.remove("msg-flash"), 1400);
+  }
+  imm.backTarget = null;
+  $("#imm-back-chat").classList.add("hidden");
+});
+
 // 键盘：注册到全局分发器（以前这里和阅读器各管一套，导致方向键一次跳两页）
 onGlobalKey(({ key, typing }) => {
   if ($("#immersive").classList.contains("hidden")) return false;

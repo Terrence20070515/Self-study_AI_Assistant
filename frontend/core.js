@@ -659,6 +659,51 @@ document.addEventListener("keydown", (e) => {
   }
 });
 
+// ---------- 快捷键面板（按 ? 打开）----------
+// 面板本身只是"告诉用户有哪些键"，键位定义分散在各个视图里，
+// 所以这里维护一份给人看的清单；改了键位记得同步。
+const KEY_HELP = [
+  ["← / →", "阅读器：上一页 / 下一页"],
+  ["PageUp / PageDown", "阅读器：同上"],
+  ["Esc", "关闭阅读器 / 关闭这个面板"],
+  ["Enter", "汇编填空：跳到下一个空（最后一空 = 提交）"],
+  ["?", "打开 / 关闭这个面板"],
+];
+
+function toggleKeyHelp() {
+  const cur = document.getElementById("key-help");
+  if (cur) { cur.remove(); return; }
+  const box = document.createElement("div");
+  box.id = "key-help";
+  box.className = "key-help";
+  box.innerHTML =
+    `<div class="key-help-card">`
+    + `<div class="key-help-head"><b>快捷键</b><span>按 ? 或 Esc 关闭</span></div>`
+    + `<dl>${KEY_HELP.map(([k, d]) =>
+        `<dt><kbd>${k}</kbd></dt><dd>${d}</dd>`).join("")}</dl>`
+    + `</div>`;
+  // 点遮罩关闭；点内容不关
+  box.onclick = (e) => { if (e.target === box) box.remove(); };
+  document.body.appendChild(box);
+}
+
+// 「从引用跳去阅读器」后的返回目标：存的是一条消息元素，
+// 阅读器里点「回到刚才的对话」就滚回它。声明在 core.js，阅读器和问答都用得到。
+let citeReturnTarget = null;
+
+onGlobalKey(({ key, typing }) => {
+  if (key === "?") {
+    if (typing) return false;          // 输入框里打问号不该弹面板
+    toggleKeyHelp();
+    return true;
+  }
+  if (key === "Escape" && document.getElementById("key-help")) {
+    toggleKeyHelp();
+    return true;
+  }
+  return false;
+});
+
 // ---------- 阅读进度：翻页即记，防抖上报 ----------
 const _progressTimers = {};
 function saveProgress(mid, page, delay = 1200) {

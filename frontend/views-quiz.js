@@ -529,7 +529,10 @@ function appendMsg(role, content, citations = []) {
   div.className = role === "user" ? "msg msg-user" : "msg msg-ai";
   // 只有 AI 的消息按 Markdown 渲染；用户输入的是纯文本，不该把 * 当成语法
   div.innerHTML = role === "assistant" ? formatAiText(content) : esc(content).replace(/\n/g, "<br>");
-  if (role === "assistant" && citations?.length) div.appendChild(citeRow(citations));
+  if (role === "assistant" && citations?.length) {
+    div.appendChild(citeRow(citations));
+    wireCiteReturn(div);
+  }
   log.appendChild(div);
   log.scrollTop = log.scrollHeight;
   return div;
@@ -648,6 +651,11 @@ function citeRow(citations) {
     const a = document.createElement("a");
     a.className = "cite";
     a.href = "javascript:void(0)";
+    // 参数放 dataset 上：wireCiteReturn 要用它重挂 onclick（带"返回目标"）
+    a.dataset.mid = c.material_id || "";
+    a.dataset.page = c.page || "";
+    a.dataset.name = c.orig_name || "";
+    a.dataset.ext = c.ext || "";
     if (c.material_id) a.onclick = () => openViewer(c.material_id, c.page, c.orig_name, c.ext);
     else { a.style.pointerEvents = "none"; a.style.opacity = ".7"; }
     // 开了「允许外部资料」时可能检索到别的课程：必须标出来，
@@ -661,6 +669,23 @@ function citeRow(citations) {
     row.appendChild(a);
   }
   return row;
+}
+
+/**
+ * 给刚插入的引用条挂「可返回」的点击：
+ * 点引用跳去阅读器之前，先把**这条消息**记到全局 citeReturnTarget，
+ * 阅读器里就有得可返回（B4）。citeRow 里的 onclick 保留作兜底，
+ * 万一哪里没走到这里，引用也不会变成点不动。
+ */
+function wireCiteReturn(msgDiv) {
+  msgDiv.querySelectorAll(".cite").forEach((a) => {
+    if (!a.dataset.mid) return;
+    a.onclick = () => {
+      citeReturnTarget = msgDiv;
+      openViewer(a.dataset.mid, Number(a.dataset.page) || 0,
+                 a.dataset.name || "", a.dataset.ext || "");
+    };
+  });
 }
 
 // 开关的常量与 syncExtState 定义在「聊天」区开头（loadMessages 会重建提示，必须共享同一份）
@@ -724,7 +749,10 @@ async function runChat({ question, mode, allow_external = false }) {
       onError: (msg) => { text += `\n\n${msg}`; paint(false); },
       onDone: (citations) => {
         paint(false);
-        if (citations.length) div.appendChild(citeRow(citations));
+        if (citations.length) {
+          div.appendChild(citeRow(citations));
+          wireCiteReturn(div);
+        }
         log.scrollTop = log.scrollHeight;
       },
     });
