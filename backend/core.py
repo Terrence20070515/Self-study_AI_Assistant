@@ -910,11 +910,10 @@ def stream_chat(course_id: str, question: str, mode: str = "ask",
                 full.append(delta)
                 yield {"type": "delta", "text": delta}
         text = "".join(full)
-        store.add_message(course_id, "assistant", text)
         # course_code 必须带上：开了「允许外部资料」时检索会跨课程，
         # 前端要能标出「这条来自别的课」，否则用户会以为 RAG 串了数据。
         own_code = (store.get_course(course_id) or {}).get("code", "")
-        yield {"type": "done", "citations": [
+        cites = [
             {"n": i + 1, "orig_name": r["orig_name"], "page": r["page"],
              "material_id": r["material_id"],
              # Word 若已转出 PDF，引用按 PDF 呈现（页码是页、跳转进沉浸模式）
@@ -922,7 +921,11 @@ def stream_chat(course_id: str, question: str, mode: str = "ask",
              "course_code": r.get("course_code") or "",
              "foreign": bool(r.get("course_code")) and r["course_code"] != own_code}
             for i, r in enumerate(results)
-        ]}
+        ]
+        # 引用必须跟回答一起落库：以前只推给前端、不存库，刷新或切课程再回来，
+        # 历史消息就没有出处可点了 —— 表现就是"引用跳转是坏的"。
+        store.add_message(course_id, "assistant", text, cites)
+        yield {"type": "done", "citations": cites}
     except Exception as e:  # noqa: BLE001
         yield {"type": "error", "message": str(e)}
 
