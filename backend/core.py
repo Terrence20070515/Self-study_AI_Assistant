@@ -1053,6 +1053,51 @@ def convert_docx_to_pdf(src: str, out_dir: str = "") -> str:
     return out if os.path.exists(out) and os.path.getsize(out) > 0 else ""
 
 
+def doc_bytes_to_docx(raw: bytes) -> bytes:
+    """上传流里的 .doc 字节 → .docx 字节；转换失败返回 b""。
+
+    上传和批量导入都走这里，避免每个入口各写一遍临时文件逻辑。
+    """
+    import tempfile
+    if not raw:
+        return b""
+    with tempfile.TemporaryDirectory() as td:
+        src = os.path.join(td, "in.doc")
+        with open(src, "wb") as f:
+            f.write(raw)
+        out = convert_doc_to_docx(src, td)
+        if not out:
+            return b""
+        with open(out, "rb") as f:
+            return f.read()
+
+
+def convert_doc_to_docx(src: str, out_dir: str) -> str:
+    """旧版 .doc（Word 97-2003 二进制格式）→ .docx，返回产物路径，失败返回空串。
+
+    为什么需要单独这一步：python-docx 和 mammoth 都只认 OOXML（.docx），
+    读不了 .doc 的二进制结构。macOS 自带 textutil 能转，转完就和普通 docx 一样，
+    下游的解析、HTML 阅读器、逐页注释全都不用改。
+
+    没有 LibreOffice 也能用 —— textutil 是系统自带的，不需要额外安装。
+    """
+    import shutil as _shutil
+    if not os.path.exists(src):
+        return ""
+    exe = _shutil.which("textutil") or ("/usr/bin/textutil" if os.path.exists("/usr/bin/textutil") else "")
+    if not exe:
+        return ""
+    stem = os.path.splitext(os.path.basename(src))[0]
+    out = os.path.join(out_dir, stem + ".docx")
+    try:
+        subprocess.run([exe, "-convert", "docx", "-output", out, src],
+                       check=True, timeout=120,
+                       stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
+    except (OSError, subprocess.SubprocessError):
+        return ""
+    return out if os.path.exists(out) and os.path.getsize(out) > 0 else ""
+
+
 def _cite_ext(row: dict) -> str:
     """引用该按什么呈现：Word 已有转换版就按 PDF（页码是页、跳转进沉浸模式），
     否则用它自己的扩展名。"""

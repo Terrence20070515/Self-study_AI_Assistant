@@ -78,10 +78,16 @@ def api_upload(cid: str, file: UploadFile = File(...), tag: str = Form("")):
     course_or_404(cid)
     ext = (file.filename or "").lower().rsplit(".", 1)[-1]
     if ext not in ALLOWED_EXTS:
-        raise HTTPException(400, "目前支持 PDF 和 Word (.docx) 文件")
+        raise HTTPException(400, "目前支持 PDF 和 Word（.docx / .doc）文件")
     data = file.file.read()
     if not data:
         raise HTTPException(400, "文件为空")
+    if ext == "doc":                       # 旧版 .doc 先转 .docx 再入库
+        converted = core.doc_bytes_to_docx(data)
+        if not converted:
+            raise HTTPException(400, f"{file.filename}：旧版 .doc 转换失败，"
+                                     "请用 Word 另存为 .docx 再上传")
+        data, ext = converted, "docx"
     if tag not in TAGS:
         tag = core.guess_tag(file.filename or "")  # 自动判定资料性质
     mid = store.add_material(cid, file.filename, tag, len(data), ext)
@@ -132,6 +138,11 @@ async def api_upload_handbook(cid: str, file: UploadFile = File(...)):
     data = await file.read()
     if not data:
         raise HTTPException(400, "文件为空")
+    if ext == "doc":                       # HandBook 同样支持旧版 .doc
+        converted = core.doc_bytes_to_docx(data)
+        if not converted:
+            raise HTTPException(400, "旧版 .doc 转换失败，请另存为 .docx 再上传")
+        data, ext = converted, "docx"
     from ..config import handbook_path
     hpath = handbook_path(cid, ext)
     with open(hpath, "wb") as f:

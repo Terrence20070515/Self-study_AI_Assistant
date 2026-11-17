@@ -255,6 +255,15 @@ def api_all_materials(q: str = "", tag: str = ""):
 
 def _ingest_file_bytes(course_id: str, filename: str, raw: bytes) -> str:
     ext = filename.lower().rsplit(".", 1)[-1]
+    # 旧版 .doc 是二进制格式，python-docx / mammoth 都读不了 —— 入库前先转成 .docx。
+    # 转换用系统自带 textutil（macOS），转完这份资料和普通 docx 完全一样，
+    # 解析、HTML 阅读器、逐页注释都不用另写一套。
+    if ext == "doc":
+        converted = core.doc_bytes_to_docx(raw)
+        if not converted:
+            raise HTTPException(400, f"{filename}：旧版 .doc 转换失败，"
+                                     "请用 Word 另存为 .docx 再上传")
+        raw, ext = converted, "docx"
     mid = store.add_material(course_id, filename, core.guess_tag(filename), len(raw), ext)
     with open(material_file_path(mid, ext), "wb") as f:
         f.write(raw)

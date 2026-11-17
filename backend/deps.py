@@ -17,7 +17,7 @@ UNFILED_CODE = "UNFILED"
 # 后面不能再跟数字（避免 5 位数字误判）；紧跟小写字母的情况在取用时再裁掉（如 CPT203Lecture）
 COURSE_CODE_RE = re.compile(r"\b([A-Z]{2,4})[-_ ]?(\d{3,4})([A-Z])?(?![0-9])")
 GROUPS = {"major": "专业课", "easy": "水课", "elective": "额外选修课"}
-ALLOWED_EXTS = {"pdf", "docx"}
+ALLOWED_EXTS = {"pdf", "docx", "doc"}   # .doc 上传后自动转 .docx 再入库
 
 
 def course_or_404(cid: str):

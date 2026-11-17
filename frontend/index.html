@@ -4,7 +4,7 @@
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
 <title>Self-Learning Space</title>
-<link rel="stylesheet" href="main.css?v=20261117b">
+<link rel="stylesheet" href="main.css?v=20261117c">
 </head>
 <body>
 <div class="layout">
@@ -107,7 +107,7 @@
           <div><strong>把 zip 压缩包拖到这里</strong>，或</div>
           <label class="btn btn-primary" for="zip-input">选择文件</label>
           <input type="file" id="zip-input" accept=".zip" hidden>
-          <div class="muted" style="margin-top:8px">导入其中的 PDF 和 Word (.docx)；文件名识别不出课程代码的会进入「未分类」课程</div>
+          <div class="muted" style="margin-top:8px">导入其中的 PDF 和 Word（.docx / .doc）；文件名识别不出课程代码的会进入「未分类」课程</div>
         </div>
         <div id="import-report" class="import-report hidden"></div>
       </section>
@@ -261,7 +261,7 @@
               <button id="btn-hb-save" class="btn btn-primary btn-sm hidden">保存</button>
               <button id="btn-hb-cancel" class="btn btn-ghost btn-sm hidden">取消</button>
               <button id="hb-upload-btn" class="btn btn-primary btn-sm">上传/重传 HandBook</button>
-              <input type="file" id="hb-file" accept=".pdf,.docx" hidden>
+              <input type="file" id="hb-file" accept=".pdf,.docx,.doc" hidden>
             </div>
           </div>
           <div id="hb-note" class="grade-note muted">HandBook 是学习指引：上传后 AI 扫描考核构成作预填，帮你理清这门课要做什么、各占多少分。所有内容可手工修改。</div>
@@ -286,7 +286,7 @@
               <button id="btn-ai-organize" class="btn btn-ghost btn-sm hidden">AI 整理</button>
               <input id="material-search" class="input input-sm" placeholder="搜索资料名…">
               <label class="btn btn-primary btn-sm" for="file-input" id="upload-label">上传 PDF / Word</label>
-              <input type="file" id="file-input" accept=".pdf,.docx" multiple hidden>
+              <input type="file" id="file-input" accept=".pdf,.docx,.doc" multiple hidden>
             </div>
           </div>
           <div class="tag-filter" id="tag-filter">
@@ -654,13 +654,13 @@
     }, 3000);
   });
 </script>
-<script src="core.js?v=20261117b"></script>
-  <script src="views-home.js?v=20261117b"></script>
-  <script src="views-course.js?v=20261117b"></script>
-  <script src="views-quiz.js?v=20261117b"></script>
-  <script src="views-quizpage.js?v=20261117b"></script>
-  <script src="views-asm.js?v=20261117b"></script>
-  <script src="views-tools.js?v=20261117b"></script>
-  <script src="main.js?v=20261117b"></script>
+<script src="core.js?v=20261117c"></script>
+  <script src="views-home.js?v=20261117c"></script>
+  <script src="views-course.js?v=20261117c"></script>
+  <script src="views-quiz.js?v=20261117c"></script>
+  <script src="views-quizpage.js?v=20261117c"></script>
+  <script src="views-asm.js?v=20261117c"></script>
+  <script src="views-tools.js?v=20261117c"></script>
+  <script src="main.js?v=20261117c"></script>
 </body>
 </html>
