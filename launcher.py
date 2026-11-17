@@ -121,6 +121,34 @@ class JsApi:
         shutil.copy(tmp.name, target)
         return target
 
+    def export_cheat_pdf(self, cid: str) -> str:
+        """速查表导出：现场生成 PDF，弹原生保存框。
+
+        不走浏览器的 <a download> —— 桌面窗口是 WKWebView，它没有下载代理，
+        点了链接什么都不会发生（资料导出当初就是因此加了原生导出）。
+        """
+        import webview as _wv
+        from backend import pdfexport, store
+        co = store.get_course(cid)
+        if not co:
+            return ""
+        data = store.cheat_list(cid)
+        if not data["items"]:
+            return ""
+        pdf = pdfexport.build_cheat_pdf(co.get("code") or "", co.get("name") or "",
+                                        data["items"])
+        window = _wv.windows[0]
+        target = window.create_file_dialog(
+            _wv.SAVE_DIALOG,
+            save_filename=f"{pdfexport.safe_filename(co.get('code') or 'cheat')}-cheatsheet.pdf",
+            file_types=("PDF 文件 (*.pdf)",))
+        if not target:
+            return ""
+        target = target[0] if isinstance(target, (list, tuple)) else target
+        with open(target, "wb") as f:
+            f.write(pdf)
+        return target
+
     def export_one(self, mid: str) -> str:
         import shutil as _shutil2
         import webview as _wv

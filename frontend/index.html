@@ -4,7 +4,7 @@
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
 <title>Self-Learning Space</title>
-<link rel="stylesheet" href="main.css?v=20261119a">
+<link rel="stylesheet" href="main.css?v=20261119b">
 </head>
 <body>
 <div class="layout">
@@ -260,6 +260,39 @@
         </div>
       </header>
       <div id="wb-body" class="wb-body"></div>
+    </div>
+
+    <!-- 速查表：四段可编辑速查页 + 一键导出 PDF -->
+    <div id="cheat-view" class="course-view hidden">
+      <header class="course-header">
+        <div>
+          <h1>速查表 <span class="wb-tag" id="cheat-title"></span></h1>
+          <div class="course-sub">选课 → 勾资料生成 → 随手改 → 导出 PDF。每条都能跳回原文那一页</div>
+        </div>
+        <div class="course-actions">
+          <button id="cheat-pdf" class="btn btn-outline">导出 PDF</button>
+          <button id="cheat-switch" class="btn btn-ghost">← 换课程</button>
+        </div>
+      </header>
+
+      <section class="panel" id="cheat-pick">
+        <div class="panel-head">
+          <h3>选择课程</h3>
+          <span class="muted">每门课一份，随时回来补</span>
+        </div>
+        <div id="cheat-course-list" class="kg-course-list"></div>
+      </section>
+
+      <section class="panel hidden" id="cheat-panel">
+        <div class="panel-head">
+          <h3>速查页</h3>
+          <div class="panel-tools">
+            <button id="cheat-gen" class="btn btn-outline btn-sm">AI 生成</button>
+            <button id="cheat-add" class="btn btn-ghost btn-sm">＋ 加一条</button>
+          </div>
+        </div>
+        <div id="cheat-body" class="cheat-body"></div>
+      </section>
     </div>
 
     <!-- 知识图：每门课一张可长期维护的概念图 -->
@@ -557,6 +590,21 @@
   </div>
 </div>
 
+<!-- 速查表生成：勾选资料 -->
+<div id="modal-cheat-gen" class="modal hidden">
+  <div class="modal-card kg-draft-card">
+    <h3>生成速查表</h3>
+    <div class="muted" style="margin-bottom:10px">
+      勾几份资料（不必全选）。会覆盖当前速查表的内容 —— 生成后仍可逐条改。
+    </div>
+    <div id="cheat-mat-list" class="kg-mat-list"></div>
+    <div class="modal-actions">
+      <button class="btn btn-ghost" data-close>取消</button>
+      <button id="cheat-gen-go" class="btn btn-primary">生成</button>
+    </div>
+  </div>
+</div>
+
 <!-- AI 起草原图：勾选资料 -->
 <div id="modal-kg-draft" class="modal hidden">
   <div class="modal-card kg-draft-card">
@@ -773,15 +821,16 @@
     }, 3000);
   });
 </script>
-<script src="core.js?v=20261119a"></script>
-  <script src="views-home.js?v=20261119a"></script>
-  <script src="views-course.js?v=20261119a"></script>
-  <script src="views-quiz.js?v=20261119a"></script>
-  <script src="views-quizpage.js?v=20261119a"></script>
-  <script src="views-asm.js?v=20261119a"></script>
-  <script src="views-wrong.js?v=20261119a"></script>
-  <script src="views-map.js?v=20261119a"></script>
-  <script src="views-tools.js?v=20261119a"></script>
-  <script src="main.js?v=20261119a"></script>
+<script src="core.js?v=20261119b"></script>
+  <script src="views-home.js?v=20261119b"></script>
+  <script src="views-course.js?v=20261119b"></script>
+  <script src="views-quiz.js?v=20261119b"></script>
+  <script src="views-quizpage.js?v=20261119b"></script>
+  <script src="views-asm.js?v=20261119b"></script>
+  <script src="views-wrong.js?v=20261119b"></script>
+  <script src="views-map.js?v=20261119b"></script>
+  <script src="views-cheat.js?v=20261119b"></script>
+  <script src="views-tools.js?v=20261119b"></script>
+  <script src="main.js?v=20261119b"></script>
 </body>
 </html>

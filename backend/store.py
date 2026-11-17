@@ -256,6 +256,22 @@ def init_db():
             )"""
         )
         c.execute("CREATE INDEX IF NOT EXISTS idx_kg_edge_course ON kg_edges(course_id)")
+        # 速查表：每门课一份，四段（术语 / 公式 / 代码 / 易错点）。
+        # 应用内可编辑，同一份内容另出一条 PDF 出口 —— PDF 是终点，能改的页面才是过程。
+        c.execute(
+            """CREATE TABLE IF NOT EXISTS cheat_items(
+                id INTEGER PRIMARY KEY AUTOINCREMENT,
+                course_id TEXT NOT NULL,
+                section TEXT NOT NULL DEFAULT 'terms',
+                title TEXT NOT NULL DEFAULT '',
+                body TEXT NOT NULL DEFAULT '',
+                material_id TEXT NOT NULL DEFAULT '',
+                page INTEGER NOT NULL DEFAULT 0,
+                ord INTEGER NOT NULL DEFAULT 0,
+                created_at REAL NOT NULL
+            )"""
+        )
+        c.execute("CREATE INDEX IF NOT EXISTS idx_cheat_course ON cheat_items(course_id)")
         # 覆盖率台账：记录每个知识点单元是否出过题。
         # unit_key 由「资料 + 页 + 段号」拼成（见 core.build_knowledge_units）——
         # 只要资料内容不变，同一页永远算出同一个 key，覆盖率才能跨次累积。
@@ -1401,6 +1417,93 @@ def kg_add_many(course_id: str, nodes: list) -> list:
             else:
                 out[i]["parent_id"] = 0
     return out
+
+
+# ---------- 速查表 ----------
+# 结构固定四段：术语表 / 公式 / 代码模板 / 易错点。
+# 每条挂 material_id + page，点一下跳原文；导出 PDF 时页码也印上去。
+
+CHEAT_SECTIONS = ("terms", "formulas", "code", "pitfalls")
+CHEAT_FIELDS = {"section", "title", "body", "material_id", "page", "ord"}
+
+
+def cheat_list(course_id: str) -> dict:
+    with _conn() as c:
+        rows = [dict(r) for r in c.execute(
+            "SELECT id, section, title, body, material_id, page, ord FROM cheat_items"
+            " WHERE course_id=? ORDER BY section, ord, id", (course_id,))]
+        # 资料名得带上：只显示页码，用户不知道是哪份资料的第几页
+        # 资料名 + ext：点条目要按 ext 选阅读器（docx 与 pdf 走的不是同一条路）
+        meta = {r["id"]: (r["orig_name"], r["ext"]) for r in c.execute(
+            "SELECT id, orig_name, ext FROM materials WHERE course_id=?", (course_id,)).fetchall()}
+    for r in rows:
+        name, ext = meta.get(r["material_id"], ("", "pdf"))
+        r["orig_name"] = name
+        r["ext"] = ext or "pdf"
+    counts = {k: 0 for k in CHEAT_SECTIONS}
+    for r in rows:
+        counts[r["section"]] = counts.get(r["section"], 0) + 1
+    return {"items": rows, "counts": counts}
+
+
+def cheat_add_item(course_id: str, section: str, title: str, body: str,
+                   material_id: str = "", page: int = 0) -> dict:
+    section = section if section in CHEAT_SECTIONS else "terms"
+    with _conn() as c:
+        nxt = c.execute(
+            "SELECT COALESCE(MAX(ord),0)+1 AS n FROM cheat_items WHERE course_id=? AND section=?",
+            (course_id, section)).fetchone()["n"]
+        cur = c.execute(
+            "INSERT INTO cheat_items(course_id, section, title, body, material_id, page, ord, created_at)"
+            " VALUES(?,?,?,?,?,?,?,?)",
+            (course_id, section, str(title)[:200], str(body)[:2000],
+             material_id or "", int(page or 0), int(nxt), now()))
+        return {"id": cur.lastrowid, "section": section, "title": str(title)[:200],
+                "body": str(body)[:2000], "material_id": material_id or "",
+                "page": int(page or 0), "ord": int(nxt)}
+
+
+def cheat_update_item(iid: int, **fields) -> bool:
+    _check_fields(fields, CHEAT_FIELDS, "cheat_items")
+    if not fields:
+        return False
+    if "section" in fields and fields["section"] not in CHEAT_SECTIONS:
+        raise ValueError("未知的段落")
+    for k, lim in (("title", 200), ("body", 2000)):
+        if k in fields:
+            fields[k] = str(fields[k])[:lim]
+    keys = ",".join(f"{k}=?" for k in fields)
+    with _conn() as c:
+        return c.execute(f"UPDATE cheat_items SET {keys} WHERE id=?",
+                         (*fields.values(), iid)).rowcount > 0
+
+
+def cheat_delete_item(iid: int) -> bool:
+    with _conn() as c:
+        return c.execute("DELETE FROM cheat_items WHERE id=?", (iid,)).rowcount > 0
+
+
+def cheat_replace(course_id: str, items: list) -> int:
+    """整份替换（AI 重新生成时用）。
+
+    旧内容一并删掉 —— 半新半旧混在一起，用户分不清哪条是刚生成的。
+    前端调用前会先确认过。
+    """
+    with _conn() as c:
+        c.execute("DELETE FROM cheat_items WHERE course_id=?", (course_id,))
+        n = 0
+        for sec in CHEAT_SECTIONS:
+            ord_ = 0
+            for it in [x for x in items if x.get("section") == sec]:
+                c.execute(
+                    "INSERT INTO cheat_items(course_id, section, title, body, material_id, page, ord, created_at)"
+                    " VALUES(?,?,?,?,?,?,?,?)",
+                    (course_id, sec, str(it.get("title") or "")[:200],
+                     str(it.get("body") or "")[:2000], it.get("material_id") or "",
+                     int(it.get("page") or 0), ord_, now()))
+                ord_ += 1
+                n += 1
+    return n
 
 
 # ---------- 成绩构成 ----------

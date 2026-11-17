@@ -1980,3 +1980,99 @@ def _layout_map(nodes: list) -> None:
             n["x"] = round(x_cursor[0], 1)
             n["y"] = round(120 + Y_GAP * 2, 1)
             x_cursor[0] += X_GAP
+
+
+# ---------- 速查表：AI 生成四段 ----------
+# 结构固定：术语 / 公式 / 代码模板 / 易错点。每一条都带页码 ——
+# 速查表的价值一半在「考前能扫一眼」，另一半在「想细看时知道翻哪页」。
+
+CHEAT_PROMPT = (
+    "你在帮一个大学生做考前速查表。只输出 JSON，四个键：terms / formulas / code / pitfalls。\n"
+    "terms: [{\"term\":\"术语（保留英文原词）\",\"def\":\"一句中文解释\",\"page\":12,\"material\":0}]\n"
+    "formulas: [{\"expr\":\"公式或规则（用纯文本，如 R(A,B) = ...）\",\"note\":\"什么时候用\",\"page\":12,\"material\":0}]\n"
+    "code: [{\"title\":\"这段代码解决什么\",\"code\":\"代码（最多 8 行）\",\"page\":12,\"material\":0}]\n"
+    "pitfalls: [{\"text\":\"容易错/容易混的点\",\"page\":12,\"material\":0}]\n"
+    "规则：\n"
+    "1. 每段最多 8 条，宁少勿滥；没有内容的段给空数组。\n"
+    "2. page 必须是给定页码里真实存在的，不要编。\n"
+    "3. material 是资料下标（从 0 开始）。\n"
+    "4. 只写课件里确实有的，不要补充你自己的知识。\n"
+)
+
+
+def generate_cheat(course_id: str, material_ids: list) -> list:
+    """按所选资料生成四段速查内容，返回可直接落库的 items。"""
+    cfg = load_config()
+    if not cfg.get("api_key"):
+        raise ValueError("还没配置 API Key")
+
+    units = build_knowledge_units(material_ids)
+    by_mat: dict[str, list] = {}
+    name_of: dict[str, str] = {}
+    for u in units:
+        by_mat.setdefault(u["material_id"], []).append(u)
+        name_of[u["material_id"]] = u.get("orig_name") or ""
+
+    blocks, used = [], []
+    for mid in material_ids:
+        us = by_mat.get(mid) or []
+        if not us:
+            continue
+        step = max(1, len(us) // 16)
+        sample = us[::step][:16]
+        idx = len(used)
+        used.append(mid)
+        body = "\n".join(f"p{u['page']}: {(u['text'] or '')[:280]}" for u in sample)
+        blocks.append(f"【资料 {idx}】{name_of.get(mid, '')}\n{body}")
+    if not blocks:
+        raise ValueError("所选资料还没有解析成功的正文")
+
+    resp = _client().chat.completions.create(
+        model=cfg["model"],
+        messages=[{"role": "user", "content": CHEAT_PROMPT + "\n" + "\n\n".join(blocks)}],
+        temperature=0.2,
+        max_tokens=3000,
+        response_format={"type": "json_object"},
+    )
+    data = json.loads(resp.choices[0].message.content or "{}")
+
+    def pick_material(v) -> str:
+        try:
+            i = int(v or 0)
+        except (TypeError, ValueError):
+            i = 0
+        return used[i] if 0 <= i < len(used) else ""
+
+    def pick_page(v) -> int:
+        try:
+            return max(0, int(v or 0))
+        except (TypeError, ValueError):
+            return 0
+
+    items = []
+    for t in data.get("terms") or []:
+        term = str(t.get("term") or "").strip()
+        if term:
+            items.append({"section": "terms", "title": term[:200],
+                          "body": str(t.get("def") or "").strip()[:2000],
+                          "page": pick_page(t.get("page")), "material_id": pick_material(t.get("material"))})
+    for f in data.get("formulas") or []:
+        expr = str(f.get("expr") or "").strip()
+        if expr:
+            items.append({"section": "formulas", "title": expr[:200],
+                          "body": str(f.get("note") or "").strip()[:2000],
+                          "page": pick_page(f.get("page")), "material_id": pick_material(f.get("material"))})
+    for c in data.get("code") or []:
+        code = str(c.get("code") or "").strip()
+        if code:
+            items.append({"section": "code", "title": str(c.get("title") or "").strip()[:200] or "代码",
+                          "body": code[:2000],
+                          "page": pick_page(c.get("page")), "material_id": pick_material(c.get("material"))})
+    for p in data.get("pitfalls") or []:
+        txt = str(p.get("text") or "").strip()
+        if txt:
+            items.append({"section": "pitfalls", "title": "", "body": txt[:2000],
+                          "page": pick_page(p.get("page")), "material_id": pick_material(p.get("material"))})
+    if not items:
+        raise ValueError("模型没有给出可用内容")
+    return items

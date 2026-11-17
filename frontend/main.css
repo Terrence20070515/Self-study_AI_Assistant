@@ -1344,3 +1344,73 @@ button.wb-pick:disabled { cursor: default; opacity: .75; }
 .kg-edge-belongs .kg-edge-label { opacity: 0; }
 .kg-edge:hover .kg-edge-label { opacity: 1; }
 .kg-edge-label { transition: opacity .12s ease; }
+
+/* ===== 速查表 ===== */
+.cheat-body { display: flex; flex-direction: column; gap: 18px; }
+.cheat-sec { border: 1px solid var(--border); border-radius: 10px; overflow: hidden; }
+.cheat-sec-head {
+  display: flex; align-items: baseline; gap: 10px;
+  padding: 9px 14px; background: var(--pre-bg);
+  border-bottom: 1px solid var(--border);
+}
+.cheat-sec-head b { font-size: 13px; letter-spacing: .3px; }
+.cheat-sec-head .muted { font-size: 11.5px; }
+.cheat-sec-head .btn { margin-left: auto; }
+
+.cheat-item {
+  padding: 10px 14px 8px;
+  border-bottom: 1px solid var(--border);
+}
+.cheat-item:last-child { border-bottom: none; }
+.cheat-item:hover { background: var(--accent-weak); }
+
+.cheat-item-head { display: flex; align-items: baseline; gap: 8px; }
+.cheat-num {
+  flex: 0 0 auto; font-size: 11px; color: var(--text-2);
+  font-variant-numeric: tabular-nums;
+}
+.cheat-title {
+  flex: 1; min-width: 0;
+  font-size: 13px; font-weight: 600; line-height: 1.5;
+  padding: 2px 4px; border-radius: 4px;
+  outline: none; white-space: pre-wrap; word-break: break-word;
+}
+.cheat-body-text {
+  margin: 3px 0 0 20px;
+  font-size: 12.5px; line-height: 1.75; color: var(--text);
+  padding: 4px 6px; border-radius: 4px;
+  outline: none; white-space: pre-wrap; word-break: break-word;
+  font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
+}
+.cheat-item[data-section="terms"] .cheat-body-text,
+.cheat-item[data-section="pitfalls"] .cheat-body-text,
+.cheat-item[data-section="formulas"] .cheat-body-text {
+  font-family: inherit; color: var(--text-2);
+}
+.cheat-title:focus, .cheat-body-text:focus {
+  background: var(--bg); box-shadow: inset 0 0 0 1px var(--accent);
+}
+.cheat-title.saving, .cheat-body-text.saving {
+  box-shadow: inset 0 0 0 1px var(--danger);
+}
+.cheat-title[data-empty]:empty::before,
+.cheat-body-text[data-empty]:empty::before {
+  content: "点这里写…"; color: var(--text-2); opacity: .6;
+}
+
+.cheat-foot {
+  display: flex; align-items: center; gap: 10px;
+  margin: 5px 0 0 20px;
+}
+.cheat-ref {
+  font-size: 11px; color: var(--text-2); background: transparent;
+  border: none; padding: 0; cursor: pointer; font-family: inherit;
+  text-align: left;
+}
+.cheat-ref:hover { color: var(--accent); text-decoration: underline; }
+.cheat-ref.muted { cursor: default; text-decoration: none; }
+.cheat-del {
+  margin-left: auto; font-size: 11px; color: var(--text-2);
+  background: transparent; border: none; cursor: pointer; font-family: inherit;
+}
+.cheat-del:hover { color: var(--danger); }
