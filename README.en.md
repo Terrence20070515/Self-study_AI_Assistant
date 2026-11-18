@@ -136,6 +136,16 @@ launcher.py      pywebview desktop shell
 - Chunking is fixed-size sliding window; may cut sentences (no semantic boundary detection)
 - No reranking stage — `top_k` takes the top N directly
 - Answer quality depends on retrieval hit rate and the configured model
+- **Assembly training only opens for course codes `CSI101` / `CPT101`.** The question bank
+  is hard-coded in `backend/asm_tasks.py` + `backend/asm_extra.py` (17 fill-in-the-blank
+  tasks, 73 blanks) and graded by exact string comparison — no API key, no materials,
+  no network needed. The whitelist lives in two places and both must be edited together:
+  `ASM_COURSE_CODES` in `backend/routers/asm.py` and `ASM_CODES` in
+  `frontend/views-asm.js`. Outside the whitelist the entry button is hidden entirely
+  (the API returns `{"supported": false, "tasks": []}`), so other courses will not see
+  the feature at all. The bank targets the CSI101 syllabus (MSVC inline `_asm`, 32-bit
+  x86, instruction set limited to Lab01–04); other architectures need their own tasks
+  written in the same structure.
 
 ## Data & privacy
 
