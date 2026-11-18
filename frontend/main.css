@@ -1468,3 +1468,15 @@ button.wb-pick:disabled { cursor: default; opacity: .75; }
 .focus-row-min { font-size: 12px; font-variant-numeric: tabular-nums; }
 .focus-empty { font-size: 12px; color: var(--text-2); line-height: 1.9; padding: 10px 0; }
 .focus-hint { font-size: 11px; margin-top: 10px; }
+
+/* ===== 「← 回到这道题」：只从题目跳问答时出现 ===== */
+/* 放在导学栏最右、贴着输入框：悬浮版会盖住底部那排快捷卡片 */
+#quiz-return { margin-left: auto; }
+
+/* 回到题卡时闪一下，眼睛好定位 */
+.q-flash { animation: qFlash 1.4s ease; }
+@keyframes qFlash {
+  0%, 100% { box-shadow: 0 0 0 0 transparent; }
+  25% { box-shadow: 0 0 0 3px var(--accent); }
+  60% { box-shadow: 0 0 0 3px var(--accent-weak); }
+}

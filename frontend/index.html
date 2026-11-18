@@ -4,7 +4,7 @@
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
 <title>Self-Learning Space</title>
-<link rel="stylesheet" href="main.css?v=20261120a">
+<link rel="stylesheet" href="main.css?v=20261120c">
 </head>
 <body>
 <div class="layout">
@@ -426,6 +426,8 @@
           </div>
           <div class="guide-bar">
             <button id="btn-guide" class="btn btn-outline btn-sm">AI 导学：基于本课资料列重点、推荐先问的问题</button>
+            <!-- 只有「从某道题跳来问 AI」时才出现：直接回到那道题，且不打断这一批题 -->
+            <button id="quiz-return" class="btn btn-primary btn-sm hidden">← 回到这道题</button>
           </div>
           <form id="chat-form" class="chat-form">
             <input id="chat-input" class="input" placeholder="输入你的问题，Enter 发送…" autocomplete="off">
@@ -849,16 +851,16 @@
     }, 3000);
   });
 </script>
-<script src="core.js?v=20261120a"></script>
-  <script src="views-home.js?v=20261120a"></script>
-  <script src="views-course.js?v=20261120a"></script>
-  <script src="views-quiz.js?v=20261120a"></script>
-  <script src="views-quizpage.js?v=20261120a"></script>
-  <script src="views-asm.js?v=20261120a"></script>
-  <script src="views-wrong.js?v=20261120a"></script>
-  <script src="views-map.js?v=20261120a"></script>
-  <script src="views-cheat.js?v=20261120a"></script>
-  <script src="views-tools.js?v=20261120a"></script>
-  <script src="main.js?v=20261120a"></script>
+<script src="core.js?v=20261120c"></script>
+  <script src="views-home.js?v=20261120c"></script>
+  <script src="views-course.js?v=20261120c"></script>
+  <script src="views-quiz.js?v=20261120c"></script>
+  <script src="views-quizpage.js?v=20261120c"></script>
+  <script src="views-asm.js?v=20261120c"></script>
+  <script src="views-wrong.js?v=20261120c"></script>
+  <script src="views-map.js?v=20261120c"></script>
+  <script src="views-cheat.js?v=20261120c"></script>
+  <script src="views-tools.js?v=20261120c"></script>
+  <script src="main.js?v=20261120c"></script>
 </body>
 </html>

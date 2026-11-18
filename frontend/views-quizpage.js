@@ -31,6 +31,9 @@ function renderQuizCourseSelect() {
 }
 
 async function loadQuizPage() {
+  // 正常进出出题页：作废「回到这道题」的回程票（题卡会被重建，回不去了）
+  quizReturn = null;
+  showQuizReturn(false);
   renderQuizCourseSelect();
   const result = $("#quiz-result");
   const cid = quizCourseId();

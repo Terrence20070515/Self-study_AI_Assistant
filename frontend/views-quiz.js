@@ -171,6 +171,7 @@ const QUIZ_LEVEL_LABEL = { easy: "易", medium: "中", hard: "难" };
 function quizCard(q, i) {
   const card = document.createElement("div");
   card.className = "quiz-card";
+  card.dataset.qid = String(q.id);     // 「回到这道题」按这个定位
   const opts = q.options || [];
   const choices = opts.map((o, k) =>
     `<div class="q-opt" data-letter="${String.fromCharCode(65 + k)}">${esc(o)}</div>`).join("");
@@ -334,7 +335,21 @@ function optFull(q, letter) {
   return (hit || L).trim();
 }
 
+/* 从题目跳去问答时留一张回程票。
+   只在这种路径下才出现「← 回到这道题」——别的入口进问答不该有它。 */
+let quizReturn = null;
+
+function showQuizReturn(on) {
+  const btn = $("#quiz-return");
+  if (btn) btn.classList.toggle("hidden", !on);
+}
+
 async function askAboutQuestion(q, pick) {
+  const cid = quizCourseId();
+  if (cid) {
+    quizReturn = { courseId: cid, qid: q.id };
+    showQuizReturn(true);
+  }
   // 出题是独立页面，答疑的落点必须是「那门课的互动学习」：
   // 只调 switchTab 会停在出题页（study 面板根本不在这个视图里）
   await openCourseChat(quizCourseId());
@@ -379,6 +394,27 @@ async function askAboutQuestion(q, pick) {
     mode: "ask",
   });
 }
+
+/* 回到那道题。
+   关键：**不走 openQuizPage / loadQuizPage** —— 那两个函数会清掉
+   quizState.session 和 #quiz-result 里的题卡，等于把这一批题打散，
+   剩下的题全被算成「未完成」。这里只是切回出题页，题卡原样还在。 */
+$("#quiz-return").onclick = guard("回到这道题", () => {
+  const t = quizReturn;
+  if (!t) return;
+  quizReturn = null;
+  showQuizReturn(false);
+  quizState.courseId = t.courseId;
+  showView("quiz");
+  renderQuizCourseSelect();
+  renderQuizBar();          // 会话还在内存里，进度条照旧
+  const card = document.querySelector(`.quiz-card[data-qid="${t.qid}"]`);
+  if (!card) { toast("这批题已经换掉了，重新出题吧"); return; }
+  card.scrollIntoView({ block: "center", behavior: "smooth" });
+  card.classList.remove("q-flash");
+  void card.offsetWidth;    // 强制重排，重复点也能再触发一次动画
+  card.classList.add("q-flash");
+});
 
 function finishQuiz() {
   const s = quizState.session;
