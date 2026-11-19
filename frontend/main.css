@@ -1480,3 +1480,57 @@ button.wb-pick:disabled { cursor: default; opacity: .75; }
   25% { box-shadow: 0 0 0 3px var(--accent); }
   60% { box-shadow: 0 0 0 3px var(--accent-weak); }
 }
+
+/* ===== SQL 训练（SOE101） ===== */
+/* 布局沿用汇编训练那套 .asm-layout / .asm-list / .asm-code，只补选择题和结果样式 */
+.sql-stem {
+  margin: 4px 0 12px; padding: 14px 16px;
+  background: var(--pre-bg); border: 1px solid var(--border); border-radius: 8px;
+  font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
+  font-size: 13px; line-height: 1.8; white-space: pre-wrap; word-break: break-word;
+  color: var(--text);
+}
+.sql-opts { display: flex; flex-direction: column; gap: 6px; }
+.sql-opt {
+  display: flex; align-items: flex-start; gap: 10px; width: 100%;
+  padding: 9px 12px; text-align: left; cursor: pointer;
+  background: var(--surface); border: 1px solid var(--border); border-radius: 8px;
+  color: var(--text); font-family: inherit; font-size: 12.5px; line-height: 1.6;
+}
+.sql-opt:hover { border-color: var(--accent); background: var(--accent-weak); }
+.sql-opt i {
+  flex: 0 0 20px; font-style: normal; font-weight: 700; font-size: 11.5px;
+  color: var(--text-2); text-align: center;
+}
+.sql-opt span { flex: 1; min-width: 0; white-space: pre-wrap; word-break: break-word; }
+.sql-opt.picked { border-color: var(--accent); background: var(--accent-weak); }
+.sql-opt.picked i { color: var(--accent); }
+.sql-opt.locked { cursor: default; }
+.sql-opt.right { border-color: var(--ok); background: var(--ok-weak); }
+.sql-opt.right i { color: var(--ok); }
+.sql-opt.wrong { border-color: var(--danger); background: var(--danger-weak); }
+.sql-opt.wrong i { color: var(--danger); }
+
+.sql-sum {
+  font-size: 15px; font-weight: 600; padding-bottom: 8px;
+  border-bottom: 1px solid var(--border); margin-bottom: 10px;
+}
+.sql-sum.ok { color: var(--ok); }
+.sql-sum.half { color: var(--warn-fg); }
+.sql-sum.bad { color: var(--danger); }
+.sql-verdict { font-size: 12.5px; color: var(--text-2); margin: 8px 0 4px; }
+.sql-verdict b { color: var(--text); }
+
+.sql-blank-row {
+  font-size: 12.5px; line-height: 1.8; padding: 7px 10px; margin-bottom: 6px;
+  border-radius: 6px; background: var(--pre-bg);
+}
+.sql-blank-row.ok { background: var(--ok-weak); }
+.sql-blank-row.bad { background: var(--danger-weak); }
+.sql-blank-row em { font-style: normal; color: var(--danger); text-decoration: line-through; }
+.sql-why { color: var(--text-2); font-size: 11.5px; margin-top: 2px; }
+.sql-note {
+  margin-top: 12px; padding: 10px 12px; border-radius: 8px;
+  background: var(--accent-weak); font-size: 12.5px; line-height: 1.8;
+}
+.sql-note b { color: var(--accent); }

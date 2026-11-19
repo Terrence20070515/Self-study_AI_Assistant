@@ -6,6 +6,7 @@
     notes     沉浸模式逐页注释
     chat      问答与出题（流式）
     kmap      知识图（节点 / 连线 / AI 起草原图）
+    sqltrain  SQL 训练（选择题 + SQL 填空，本地判分）
     cheat     速查表（四段 + PDF 导出）
     todos     待办事项
     settings  设置与健康检查
@@ -16,7 +17,7 @@ from fastapi import FastAPI
 from fastapi.staticfiles import StaticFiles
 
 from . import store
-from .routers import asm, chat, cheat, courses, kmap, materials, notes, settings, todos
+from .routers import asm, chat, cheat, courses, kmap, materials, notes, sqltrain, settings, todos
 
 app = FastAPI(title="Self-Learning Space")
 store.init_db()
@@ -34,7 +35,7 @@ async def no_cache_frontend(request, call_next):
 
 for _router in (courses.router, materials.router, notes.router,
                 chat.router, kmap.router, cheat.router, asm.router,
-                todos.router, settings.router):
+                sqltrain.router, todos.router, settings.router):
     app.include_router(_router)
 
 

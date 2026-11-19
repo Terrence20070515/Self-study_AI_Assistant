@@ -213,6 +213,20 @@ def init_db():
             )"""
         )
         c.execute("CREATE INDEX IF NOT EXISTS idx_asm_attempt ON asm_attempts(course_id, task_key)")
+        # SQL 训练（SOE101）：与汇编训练同一套「逐项判分 + 历史最好成绩」，
+        # 单独一张表是因为题型不同（有选择题，没有代码骨架），混在一起反而难查。
+        c.execute(
+            """CREATE TABLE IF NOT EXISTS sqltrain_attempts(
+                id INTEGER PRIMARY KEY AUTOINCREMENT,
+                course_id TEXT NOT NULL,
+                task_key TEXT NOT NULL,
+                score INTEGER NOT NULL DEFAULT 0,
+                total INTEGER NOT NULL DEFAULT 1,
+                detail TEXT NOT NULL DEFAULT '{}',
+                created_at REAL NOT NULL
+            )"""
+        )
+        c.execute("CREATE INDEX IF NOT EXISTS idx_sqltrain_attempt ON sqltrain_attempts(course_id, task_key)")
         # 专注记录：番茄钟以前只往 localStorage 写一个「今天几个」，
         # 没有课程、没有时长、跨天查不了，等于这个数字没法用来做任何分析。
         # 只记**完整走完**的（中途重置算放弃，不入库），否则误开的计时会污染统计。
@@ -1745,6 +1759,31 @@ def asm_progress(course_id: str) -> dict:
                             "last_at": r["last_at"]}
             for r in rows}
 
+
+def sqltrain_progress(course_id: str) -> dict:
+    """每道题的最好成绩：{task_key: {best, total, tries, last_at}}"""
+    with _conn() as c:
+        rows = c.execute(
+            "SELECT task_key, MAX(score) AS best, MAX(total) AS total,"
+            " COUNT(*) AS tries, MAX(created_at) AS last_at"
+            " FROM sqltrain_attempts WHERE course_id=? GROUP BY task_key",
+            (course_id,),
+        ).fetchall()
+    return {r["task_key"]: {"best": int(r["best"] or 0), "total": int(r["total"] or 1),
+                            "tries": r["tries"], "last_at": r["last_at"]} for r in rows}
+
+
+def add_sqltrain_attempt(course_id: str, task_key: str, score: int, total: int,
+                         detail: dict = None) -> dict:
+    import json as _json
+    with _conn() as c:
+        cur = c.execute(
+            "INSERT INTO sqltrain_attempts(course_id, task_key, score, total, detail, created_at)"
+            " VALUES(?,?,?,?,?,?)",
+            (course_id, task_key, int(score), int(total),
+             _json.dumps(detail or {}, ensure_ascii=False), now()),
+        )
+        return {"id": cur.lastrowid}
 
 def latest_asm_attempt(course_id: str, task_key: str):
     """某道题最近一次提交（含当时的代码与批改），用于「接着上次改」。"""

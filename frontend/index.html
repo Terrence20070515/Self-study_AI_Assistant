@@ -4,7 +4,7 @@
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
 <title>Self-Learning Space</title>
-<link rel="stylesheet" href="main.css?v=20261119h">
+<link rel="stylesheet" href="main.css?v=20261120c">
 </head>
 <body>
 <div class="layout">
@@ -252,6 +252,43 @@
       </div>
     </div>
 
+    <!-- SQL 训练（SOE101）：选择题 + SQL 填空，逐题本地判分 -->
+    <div id="sqltrain-view" class="course-view hidden">
+      <header class="course-header">
+        <div>
+          <h1>SQL 训练 <span class="asm-tag">选择 · 填空 · 逐题核对</span></h1>
+          <div class="course-sub">按 Lab3–5 与 L1/L2 口径出题；判分在本地比对，不用等模型</div>
+        </div>
+        <div class="course-actions">
+          <button id="btn-sql-back" class="btn btn-ghost">← 返回</button>
+        </div>
+      </header>
+
+      <div class="asm-layout">
+        <aside class="asm-list" id="sql-list"></aside>
+
+        <section class="panel asm-main">
+          <div class="asm-head">
+            <h3 id="sql-title"></h3>
+            <span class="asm-meta" id="sql-meta"></span>
+          </div>
+          <div class="asm-brief" id="sql-brief"></div>
+
+          <div id="sql-question"></div>
+
+          <div class="asm-actions">
+            <button id="btn-sql-check" class="btn btn-primary">提交检查</button>
+            <button id="btn-sql-hint" class="btn btn-outline">看提示</button>
+            <button id="btn-sql-clear" class="btn btn-ghost">重做本题</button>
+            <span class="asm-score" id="sql-score"></span>
+          </div>
+
+          <div id="sql-hint-box" class="asm-hint hidden"></div>
+          <div id="sql-result" class="asm-result"></div>
+        </section>
+      </div>
+    </div>
+
     <!-- 错题本：跨课程汇总「最近一次仍答错」的题，按课程→资料分组 -->
     <div id="wrong-view" class="course-view hidden">
       <header class="course-header">
@@ -446,6 +483,9 @@
             </button>
             <button id="btn-asm" class="chat-shortcut hidden" title="手打 x86 内联汇编，AI 逐条批改">
               <b>汇编训练</b><span>手写代码，按 lab 口径批改</span>
+            </button>
+            <button id="btn-sql" class="chat-shortcut hidden" title="SQL 选择题与填空，本地逐题判分">
+              <b>SQL 训练</b><span>三值逻辑 / 概念 / 写查询</span>
             </button>
             <button id="btn-clear-chat" class="chat-shortcut" title="清空这门课的问答记录">
               <b>清空对话</b><span>删除本课全部问答记录</span>
@@ -851,16 +891,17 @@
     }, 3000);
   });
 </script>
-<script src="core.js?v=20261119h"></script>
-  <script src="views-home.js?v=20261119h"></script>
-  <script src="views-course.js?v=20261119h"></script>
-  <script src="views-quiz.js?v=20261119h"></script>
-  <script src="views-quizpage.js?v=20261119h"></script>
-  <script src="views-asm.js?v=20261119h"></script>
-  <script src="views-wrong.js?v=20261119h"></script>
-  <script src="views-map.js?v=20261119h"></script>
-  <script src="views-cheat.js?v=20261119h"></script>
-  <script src="views-tools.js?v=20261119h"></script>
-  <script src="main.js?v=20261119h"></script>
+<script src="core.js?v=20261120c"></script>
+  <script src="views-home.js?v=20261120c"></script>
+  <script src="views-course.js?v=20261120c"></script>
+  <script src="views-quiz.js?v=20261120c"></script>
+  <script src="views-quizpage.js?v=20261120c"></script>
+  <script src="views-asm.js?v=20261120c"></script>
+  <script src="views-wrong.js?v=20261120c"></script>
+  <script src="views-map.js?v=20261120c"></script>
+  <script src="views-sqltrain.js?v=20261120c"></script>
+  <script src="views-cheat.js?v=20261120c"></script>
+  <script src="views-tools.js?v=20261120c"></script>
+  <script src="main.js?v=20261120c"></script>
 </body>
 </html>
