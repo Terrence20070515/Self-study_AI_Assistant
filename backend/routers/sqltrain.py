@@ -100,7 +100,7 @@ def api_sql_check(cid: str, body: dict):
             "why": b.get("why", ""),
         })
     detail = {
-        "kind": "blank",
+        "kind": task["kind"],
         "score": score,
         "total": len(task["blanks"]),
         "blanks": blanks,

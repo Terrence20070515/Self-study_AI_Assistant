@@ -12,7 +12,7 @@ const sqlState = {
 };
 
 const SQL_CODES = ["SOE101"];
-const SQL_KIND_LABEL = { choice: "选择", table: "算结果", blank: "填空" };
+const SQL_KIND_LABEL = { choice: "选择", table: "算结果", table_blank: "算结果·填", blank: "填空" };
 
 function sqlSupported(course) {
   return SQL_CODES.includes(String((course && course.code) || "").toUpperCase());
@@ -118,6 +118,7 @@ function selectSqlTask(key) {
 
   if (t.kind === "choice") renderSqlChoice(t, saved);
   else if (t.kind === "table") renderSqlTable(t, saved);
+  else if (t.kind === "table_blank") renderSqlTableBlank(t, saved);
   else renderSqlBlank(t, saved);
 
   const p = sqlState.progress[key];
@@ -177,7 +178,35 @@ function renderSqlTable(t, saved) {
   box.innerHTML = "";
   if (saved && Array.isArray(saved.picks)) sqlState.picks = new Set(saved.picks);
 
-  // 表：(name) + 表头 + 数据行；NULL 单独上色
+  box.appendChild(buildSqlTables(t));
+
+  const label = document.createElement("div");
+  label.className = "asm-label";
+  label.textContent = "查询";
+  box.appendChild(label);
+  const q = document.createElement("pre");
+  q.className = "sql-stem sql-query";
+  q.textContent = t.query;
+  box.appendChild(q);
+
+  const ask = document.createElement("div");
+  ask.className = "sql-ask";
+  ask.innerHTML = fmtAsk(t.question);
+  box.appendChild(ask);
+
+  const tip = document.createElement("div");
+  tip.className = "asm-label";
+  tip.innerHTML = t.multi
+    ? "可选多项　<span class=\"muted\">选完点「提交检查」；少选或错选都算错</span>"
+    : "单选　<span class=\"muted\">选完点「提交检查」</span>";
+  box.appendChild(tip);
+
+  box.appendChild(buildSqlOptions(t));
+}
+
+
+/* 关系表：表名 + 表头 + 数据行；NULL 单独上色（不标的话最容易漏看） */
+function buildSqlTables(t) {
   const tables = document.createElement("div");
   tables.className = "sql-tables";
   (t.tables || []).forEach((tb) => {
@@ -217,30 +246,55 @@ function renderSqlTable(t, saved) {
     wrap.appendChild(table);
     tables.appendChild(wrap);
   });
-  box.appendChild(tables);
+  return tables;
+}
 
+/* 查询代码块 */
+function buildSqlQuery(t) {
   const label = document.createElement("div");
   label.className = "asm-label";
   label.textContent = "查询";
-  box.appendChild(label);
   const q = document.createElement("pre");
   q.className = "sql-stem sql-query";
   q.textContent = t.query;
-  box.appendChild(q);
+  const wrap = document.createElement("div");
+  wrap.append(label, q);
+  return wrap;
+}
 
+/* ---------------- 给表算结果（填空版，同 Revision Q17-3） ---------------- */
+function renderSqlTableBlank(t, saved) {
+  const box = document.querySelector("#sql-question");
+  box.innerHTML = "";
+  const values = (saved && saved.answers) || [];
+
+  box.appendChild(buildSqlTables(t));
+  box.appendChild(buildSqlQuery(t));
+
+  // 题干里的 ____ 换成输入框
   const ask = document.createElement("div");
-  ask.className = "sql-ask";
-  ask.innerHTML = fmtAsk(t.question);
+  ask.className = "sql-ask sql-ask-blank";
+  const segs = String(t.question || "").split("____");
+  segs.forEach((seg, k) => {
+    if (seg) ask.appendChild(document.createTextNode(seg.replace(/\*\*(.+?)\*\*/g, "$1")));
+    if (k < segs.length - 1) {
+      const inp = document.createElement("input");
+      inp.className = "asm-blank sql-ans-input";
+      inp.dataset.idx = String(k);
+      inp.spellcheck = false;
+      inp.autocomplete = "off";
+      inp.value = values[k] || "";
+      inp.addEventListener("input", saveSqlDraft);
+      inp.addEventListener("keydown", (e) => {
+        if (e.key === "Enter") { e.preventDefault(); checkSql(); }
+      });
+      ask.appendChild(inp);
+    }
+  });
   box.appendChild(ask);
 
-  const tip = document.createElement("div");
-  tip.className = "asm-label";
-  tip.innerHTML = t.multi
-    ? "可选多项　<span class=\"muted\">选完点「提交检查」；少选或错选都算错</span>"
-    : "单选　<span class=\"muted\">选完点「提交检查」</span>";
-  box.appendChild(tip);
-
-  box.appendChild(buildSqlOptions(t));
+  const first = ask.querySelector(".sql-ans-input");
+  if (first && !values.length) setTimeout(() => first.focus(), 60);
 }
 
 /* 题干里的 **加粗** 转成 <b>，其余转义 */
@@ -313,6 +367,7 @@ function renderSqlBlank(t, saved) {
 }
 
 function blankInputs() {
+  // 代码填空用 .asm-blank，算结果填空用 .sql-ans-input（也是 .asm-blank 的样式）
   return [...document.querySelectorAll("#sql-question .asm-blank")];
 }
 
@@ -462,5 +517,6 @@ document.querySelector("#btn-sql-clear").onclick = () => {
   document.querySelector("#sql-result").innerHTML = "";
   if (t.kind === "choice") renderSqlChoice(t, null);
   else if (t.kind === "table") renderSqlTable(t, null);
+  else if (t.kind === "table_blank") renderSqlTableBlank(t, null);
   else renderSqlBlank(t, null);
 };

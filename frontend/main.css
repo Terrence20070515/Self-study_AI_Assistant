@@ -1559,3 +1559,7 @@ button.wb-pick:disabled { cursor: default; opacity: .75; }
   font-size: 13px; line-height: 1.75; margin: 2px 0 10px; color: var(--text);
 }
 .sql-ask b { color: var(--accent); }
+
+/* 算结果填空：输入框嵌在题干里 */
+.sql-ask-blank { line-height: 2.4; }
+.sql-ans-input { width: 90px; text-align: center; font-size: 13px; }

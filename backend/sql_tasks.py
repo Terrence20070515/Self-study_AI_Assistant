@@ -557,6 +557,143 @@ SQL_TASKS = [
         "note": "Ann 有两条选课记录，出两行；Bob 和 Cara 在 enrolment 里没有匹配，"
                 "左连接补 NULL 各出一行 —— 一共 4 行，其中 2 行 code 为 NULL。",
     },
+
+    # ---------------- 五、给表算结果（填空版：同 Revision 的 Q17-3「返回 ___ 行」） ----------------
+    {
+        "key": "tblb_01",
+        "kind": "table_blank",
+        "title": "natural join 后还剩几行",
+        "level": "hard",
+        "source": "Revision · Q17-3",
+        "brief": "t1 把 r 的 a 列改名成 b，再用 natural join 和 s 的子查询按 b 连。注意 where 条件用的是哪个 b、哪个 c。",
+        "tables": [
+            {"name": "r", "columns": ["a", "b", "c"],
+             "rows": [[7, 1, 5], [5, 2, 1], [4, 6, 1], [7, 3, 1]]},
+            {"name": "s", "columns": ["a", "b", "c"],
+             "rows": [[3, 5, 1], [6, 3, 6], [8, 7, 3], [4, 2, 3]]},
+        ],
+        "query": "select * from (select a b, c from r) as t1\nnatural join (select a, b from s) as t2\nwhere b > c;",
+        "question": "这条查询会返回 ____ 行（只填数字）",
+        "blanks": [{
+            "accept": ["3", "3 行", "3行"],
+            "hint": "先看 t1 有哪两列、t2 有哪两列，natural join 是按同名的那一列连的。",
+            "why": "t1=(b,c) 共 4 行，t2=(a,b) 共 4 行，按 b 连接后只剩 b 匹配上的组合；"
+                   "再要求 b > c，符合的只有 3 行。",
+        }],
+        "note": "natural join 自动按「所有同名列」连，不写 ON；t1 用 `select a b` 把 a 改名成 b，"
+                "就是为了让它和 t2 的 b 对上 —— 这是这类题的核心机关。",
+    },
+    {
+        "key": "tblb_02",
+        "kind": "table_blank",
+        "title": "笛卡尔积里满足条件的组合数",
+        "level": "medium",
+        "source": "Revision · 连接",
+        "brief": "FROM r, s 是 4×4=16 种组合，数一数其中有多少满足条件。",
+        "tables": [
+            {"name": "r", "columns": ["a", "b", "c"],
+             "rows": [[1, 2, 3], [2, 3, 6], [3, 3, 1], [4, 1, 3]]},
+            {"name": "s", "columns": ["a", "b", "c"],
+             "rows": [[4, 2, 3], [3, 3, 4], [1, 1, 3], [8, 1, 3]]},
+        ],
+        "query": "select count(*) from r, s where r.a > s.a;",
+        "question": "这条查询返回的数字是 ____",
+        "blanks": [{
+            "accept": ["4"],
+            "hint": "按 r 的每一行分别数：这一行的 a 比 s 里几个 a 大？",
+            "why": "r.a=1 时 0 个；r.a=2 时 s.a=1 一个；r.a=3 时 s.a=1 一个；r.a=4 时 s.a=1、3 两个。合计 4。",
+        }],
+        "note": "count(*) 数的是结果行数，不是某个列的值。",
+    },
+    {
+        "key": "tblb_03",
+        "kind": "table_blank",
+        "title": "去重后还剩几个不同的值",
+        "level": "easy",
+        "source": "Revision · 投影",
+        "brief": "distinct 只作用在被选出的那一列上。",
+        "tables": [
+            {"name": "s", "columns": ["a", "b", "c"],
+             "rows": [[4, 2, 3], [3, 3, 4], [1, 1, 3], [8, 1, 3]]},
+        ],
+        "query": "select distinct b from s;",
+        "question": "结果有 ____ 行（只填数字）",
+        "blanks": [{
+            "accept": ["3", "3 行", "3行"],
+            "hint": "把 s 的 b 列抄下来：2、3、1、1 —— 有几个不同的值？",
+            "why": "b 列是 2、3、1、1，去重后是 2、3、1 三个值。",
+        }],
+        "note": "distinct 去的是「整行重复」，这里是单列所以等于去重该列的重复值。"
+                "注意 count(*) 会是 3、count(b) 会是 4 —— 区别在于有没有去重。",
+    },
+    {
+        "key": "tblb_04",
+        "kind": "table_blank",
+        "title": "UNION ALL 到底几行",
+        "level": "medium",
+        "source": "Revision · 集合运算",
+        "brief": "把 union 换成 union all，再用 count(*) 数。",
+        "tables": [
+            {"name": "r", "columns": ["a", "b", "c"],
+             "rows": [[1, 2, 3], [2, 3, 6], [3, 3, 1], [4, 1, 3]]},
+            {"name": "s", "columns": ["a", "b", "c"],
+             "rows": [[4, 2, 3], [3, 3, 4], [1, 1, 3], [8, 1, 3]]},
+        ],
+        "query": "select count(*) from (select * from r union all select * from s) as t;",
+        "question": "返回的数字是 ____",
+        "blanks": [{
+            "accept": ["8"],
+            "hint": "union all 去不去重？先回答这句，再数行。",
+            "why": "union all 不去重，两张 4 行的表直接拼起来就是 8 行。若写成 union 也是 8 行"
+                   "（这两张表本来没有完全相同的行）—— 但那是巧合，不是规则。",
+        }],
+        "note": "union = 合并后去重；union all = 直接拼、不去重。数据里有重复时两者行数才会不同。",
+    },
+    {
+        "key": "tblb_05",
+        "kind": "table_blank",
+        "title": "左连接之后一共几行",
+        "level": "medium",
+        "source": "Lab5 · Outer Join",
+        "brief": "先数右表里每个人有几条记录，再看左表里谁没有。",
+        "tables": [
+            {"name": "student", "columns": ["id", "name"],
+             "rows": [[1, "Ann"], [2, "Bob"], [3, "Cara"]]},
+            {"name": "enrolment", "columns": ["id", "code"],
+             "rows": [[1, "MC1"], [1, "MC2"]]},
+        ],
+        "query": "select count(*) from student s\nleft join enrolment e on s.id = e.id;",
+        "question": "结果有 ____ 行（只填数字）",
+        "blanks": [{
+            "accept": ["4", "4 行", "4行"],
+            "hint": "左连接不是「每个学生一行」—— 有两条选课记录的学生会出现两次。",
+            "why": "Ann 匹配到 2 条 → 2 行；Bob、Cara 没匹配但因为是左连接，各补一行 NULL → 2 行。合计 4。",
+        }],
+        "note": "左连接的行数 = 匹配上的组合数 + 左表里没匹配上的行数。不是左表的行数。",
+    },
+    {
+        "key": "tblb_06",
+        "kind": "table_blank",
+        "title": "NOT IN 遇到 NULL 还剩几行",
+        "level": "hard",
+        "source": "Revision · 三值逻辑",
+        "brief": "子查询结果里有 NULL。别急着数，先把 NOT IN 展开成比较式。",
+        "tables": [
+            {"name": "t", "columns": ["a", "b", "c"],
+             "rows": [[1, 2, 3], [2, 3, None], [3, 3, 1]]},
+            {"name": "s2", "columns": ["c"], "rows": [[3], [None]]},
+        ],
+        "query": "select count(*) from t where c not in (select c from s2);",
+        "question": "返回的数字是 ____",
+        "blanks": [{
+            "accept": ["0", "0 行", "0行"],
+            "hint": "c NOT IN (3, NULL) 展开成什么？其中一半是否恒为 NULL？",
+            "why": "展开成 c<>3 AND c<>NULL。c<>NULL 永远是 NULL，AND 一边 NULL 一边假也是假/未知，"
+                   "所以没有任何行满足 —— 返回 0。",
+        }],
+        "note": "这是 NOT IN 最著名的坑。要「不在集合里」且子查询可能有 NULL 时，"
+                "要么先 where c is not null，要么改用 NOT EXISTS。",
+    },
 ]
 
 SQL_TASK_MAP = {t["key"]: t for t in SQL_TASKS}
@@ -572,9 +709,14 @@ def public_task(t: dict) -> dict:
         "source": t["source"],
         "brief": t["brief"],
         "note": t.get("note", ""),
-        "total": len(t.get("blanks", [])) if t["kind"] == "blank" else 1,
+        "total": len(t.get("blanks", [])) if t["kind"] in ("blank", "table_blank") else 1,
     }
-    if t["kind"] in ("choice", "table"):
+    if t["kind"] == "table_blank":
+        out["tables"] = t["tables"]
+        out["query"] = t["query"]
+        out["question"] = t["question"]
+        out["blanks"] = [{"hint": b.get("hint", ""), "why": b.get("why", "")} for b in t["blanks"]]
+    elif t["kind"] in ("choice", "table"):
         if t["kind"] == "choice":
             out["stem"] = t["stem"]
         else:
