@@ -990,69 +990,139 @@ QUIZ_KIND_LABEL = {"choice": "四选一选择题", "short": "简答题", "mixed"
 
 # ---------- 沉浸模式逐页注释 ----------
 
+def _looks_drifted(seg: str) -> bool:
+    """判断这条注释是不是「整段写成了原文语言」。
+
+    实测：西语课件偶发整页被写成西班牙语（[Idea principal] / [Puntos clave] /
+    [Términos]），英文课件偶发写成英文。模型镜像原文语言是概率性的，
+    提示词压不住全部，所以要有这道出口检查。
+
+    判据按「小标题」而不是整体中文占比：一页如果全是人名作品名，
+    中文占比天然就低，但标题仍是【本页主旨】，那不是漂移。
+    """
+    if any(h in seg for h in ("本页主旨", "要点展开")):
+        return False
+    if _DRIFT_HEAD_RE.search(seg):
+        return True
+    return len(seg) >= 60 and sum(1 for ch in seg if "\u4e00" <= ch <= "\u9fff") < 5
+
+
+_DRIFT_HEAD_RE = re.compile(
+    r"(idea\s*principal|puntos?\s*clave|puntos?\s*importantes|key\s*points?|main\s*idea|"
+    r"t[eé]rminos?|key\s*terms?|vocabulary|resumen|summary)",
+    re.I,
+)
+
+# 模型偶尔自创小标题（【英文名词解释】之类），统一拉回固定写法
+_HEAD_FIX_RE = re.compile(r"【\s*(英文名词解释|外语术语解释?|术语解释|专有名词|名词解释)\s*】")
+
+_NOTE_STRUCT = (
+    "请为其中每一页分别生成上课注释，每一页都必须严格按以下结构输出：\n"
+    "第一行单独写：【第 X 页】（X 为该页页码）\n"
+    "然后：【本页主旨】\n用一两句中文说明这页在讲什么。\n"
+    "【要点展开】\n把该页要点展开成完整、能听懂的中文句子，用 1. 2. 3. 编号；"
+    "原文是外语的直接译成中文表达；该页没有文字要点就写：本页无文字要点（可能是图表页）。\n"
+    "【原文术语】\n只列该页文字中实际出现的外语术语（英语或西班牙语都算），"
+    "每条一行：• 原词（语种）：中文解释；没有就写：本页无外语术语。\n"
+    "页与页之间不要加分隔符，直接连续输出，不要输出任何其他内容。\n"
+)
+
+_HARD_RULE = (
+    "\n\n【上一版这三页写成了原文语言，这是错误的】\n"
+    "下面这些页必须**整段用简体中文重写**：正文、小标题、编号全部中文。\n"
+    "三个小标题只能用：【本页主旨】【要点展开】【原文术语】——"
+    "禁止出现 Idea principal / Puntos clave / Key points / Main idea / Términos 这类原文标题。\n"
+    "页标记只能写【第 X 页】——禁止 [Page X] / [Página X]。\n"
+)
+
+
 def generate_page_notes_batch(course_name: str, pages: list) -> dict:
     """一次调用为多页生成注释，返回 {page_no: note}。
 
     **注释一律输出中文**，不管原文是英语、西班牙语还是中文。
     原文是外语时要求先读懂再译成中文（不逐字硬翻），术语段保留原词 + 中文解释。
-    这样同一门课的资料不用因为语言不同而分成几套注释。
 
-    pages: [(page_no, page_text), ...]。模型输出按页标记分节解析，
-    解析失败的页不会出现在返回值里（调用方下次会自动重试）。
+    外层还有一道语言校验：整页写成原文语言的（西语课件实测会偶发）不算成功，
+    丢掉后**立刻用更硬的指令重问一次**。只靠提示词压不住概率性漂移。
+
+    pages: [(page_no, page_text), ...]。解析失败的页不会出现在返回值里
+    （调用方下一轮会补跑）。
     """
-    import re as _re          # 下面按【第 X 页】切分模型输出时要用
-    page_list = "、".join(str(p[0]) for p in pages)
-    body = "\n\n".join(
-        f"【第 {pno} 页文字】\n{text[:2500]}" for pno, text in pages
-    )
-    prompt = (
-        f"你是课程「{course_name}」的助教。下面是同一份上课课件 PDF 中第 {page_list} 页提取出的文字"
-        "（可能因排版提取不完整，按能提取的内容理解）。\n"
-        "**原文可能是英语、西班牙语或中文**。无论原文是什么语言，注释一律用中文写：\n"
-        "外语内容要读懂之后用中文讲清楚，不要逐字硬翻，也不要保留整段外语原文。\n"
-        "请为其中每一页分别生成上课注释，每一页都必须严格按以下结构输出：\n"
-        "第一行单独写：【第 X 页】（X 为该页页码）\n"
-        "然后：【本页主旨】\n用一两句中文说明这页在讲什么。\n"
-        "【要点展开】\n把该页要点展开成完整、能听懂的中文句子，用 1. 2. 3. 编号；"
-        "原文是外语的直接译成中文表达；该页没有文字要点就写：本页无文字要点（可能是图表页）。\n"
-        "【原文术语】\n只列该页文字中实际出现的外语术语（英语或西班牙语都算），"
-        "每条一行：• 原词（语种）：中文解释；没有就写：本页无外语术语。\n"
-        "页与页之间不要加分隔符，直接连续输出，不要输出任何其他内容。\n\n"
-        f"{body}"
-    )
+    if not pages:
+        return {}
     cfg = load_config()
     client = _client()
     # 输出预算：每页注释约 900 token，再加余量。原来固定 2400 在 8 页批次会被截断，
     # 最后一页就存成半截内容；这里按实际页数给足，上限 8000。
     out_tokens = min(8000, max(1200, len(pages) * 900 + 400))
-    resp = client.chat.completions.create(
-        model=cfg["model"],
-        messages=[{"role": "user", "content": prompt}],
-        temperature=0.3,
-        max_tokens=out_tokens,
-    )
-    choice = resp.choices[0]
-    content = choice.message.content or ""
-    truncated = getattr(choice, "finish_reason", "") == "length"
-    # 按页标记切分解析。标记随语言变化：中文【第 X 页】/ 英文 [Page X] / 西语 [Página X]
-    out = {}
-    matches = list(_re.finditer(
-        r"【第\s*(\d+)\s*页】|\[\s*Page\s*(\d+)\s*\]|\[\s*Página\s*(\d+)\s*\]",
-        content, _re.I))
 
-    def _mark_no(m):
-        return int(next(g for g in m.groups() if g))
+    def ask(batch: list, extra_rule: str = "") -> dict:
+        sub_list = "、".join(str(p[0]) for p in batch)
+        sub_body = "\n\n".join(f"【第 {pno} 页文字】\n{text[:2500]}" for pno, text in batch)
+        prompt = (
+            f"你是课程「{course_name}」的助教。下面是同一份上课课件 PDF 中第 {sub_list} 页"
+            "提取出的文字（可能因排版提取不完整，按能提取的内容理解）。\n"
+            "【硬性要求，违反即视为错误】\n"
+            "1. 输出语言**只能是简体中文**。原文无论是英语、西班牙语还是中文都一样。\n"
+            "2. 外语内容要读懂之后用中文讲清楚，不要逐字硬翻，不要保留整段外语原文。\n"
+            "3. 唯一允许出现外语的地方是【原文术语】里的「原词」。\n"
+            "4. **人名、作品名、机构名保留原文写法**（如 Alauda Ruiz de Azúa、Cinco lobitos、"
+            "Igloo Films），需要解释时在括号里补中文；不要音译成人名、不要把片名意译成中文 ——"
+            "这门课考的是西语原名，译成中文等于帮倒忙。\n"
+            + extra_rule +
+            _NOTE_STRUCT +
+            f"\n{sub_body}"
+        )
+        resp = client.chat.completions.create(
+            model=cfg["model"],
+            messages=[{"role": "user", "content": prompt}],
+            temperature=0.3,
+            max_tokens=out_tokens,
+        )
+        return _parse_note_output(resp, batch)
 
-    # 被截断时最后一段大概率是半截的，丢掉它，让调用方下一轮重新生成
-    if truncated and matches:
-        print(f"[notes] 输出触顶被截断，丢弃最后一段 p{_mark_no(matches[-1])}")
-        matches = matches[:-1]
-    for k, m in enumerate(matches):
-        pno = _mark_no(m)
-        seg_end = matches[k + 1].start() if k + 1 < len(matches) else len(content)
-        seg = content[m.end():seg_end].strip()
-        if seg and pno in {p[0] for p in pages}:
-            out[pno] = seg
+    def _parse_note_output(resp, batch) -> dict:
+        choice = resp.choices[0]
+        content = choice.message.content or ""
+        truncated = getattr(choice, "finish_reason", "") == "length"
+        # 按页标记切分解析。标记随语言变化：中文【第 X 页】/ 英文 [Page X] / 西语 [Página X]
+        matches = list(re.finditer(
+            r"【第\s*(\d+)\s*页】|\[\s*Page\s*(\d+)\s*\]|\[\s*Página\s*(\d+)\s*\]",
+            content, re.I))
+
+        def _mark_no(m):
+            return int(next(g for g in m.groups() if g))
+
+        # 被截断时最后一段大概率是半截的，丢掉它，让调用方下一轮重新生成
+        if truncated and matches:
+            print(f"[notes] 输出触顶被截断，丢弃最后一段 p{_mark_no(matches[-1])}")
+            matches = matches[:-1]
+        allowed = {p[0] for p in batch}
+        parsed = {}
+        for k, m in enumerate(matches):
+            pno = _mark_no(m)
+            seg_end = matches[k + 1].start() if k + 1 < len(matches) else len(content)
+            seg = content[m.end():seg_end].strip()
+            if seg and pno in allowed:
+                parsed[pno] = seg
+        return parsed
+
+    out = ask(pages)
+    drifted = [p for p, seg in out.items() if _looks_drifted(seg)]
+    if drifted:
+        print(f"[notes] {len(drifted)} 页写成了原文语言，重问：{sorted(drifted)}")
+        for p in drifted:
+            out.pop(p, None)
+        retry_batch = [(p, t) for p, t in pages if p in drifted]
+        retried = ask(retry_batch, _HARD_RULE)
+        for p, seg in retried.items():
+            if not _looks_drifted(seg):
+                out[p] = seg
+        if any(p not in out for p in drifted):
+            print(f"[notes] 重问后仍有 {sorted(p for p in drifted if p not in out)} 页不合格，留给下一轮")
+
+    for p, seg in list(out.items()):
+        out[p] = _HEAD_FIX_RE.sub("【原文术语】", seg)
     return out
 
 
