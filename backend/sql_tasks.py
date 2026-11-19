@@ -694,6 +694,238 @@ SQL_TASKS = [
         "note": "这是 NOT IN 最著名的坑。要「不在集合里」且子查询可能有 NULL 时，"
                 "要么先 where c is not null，要么改用 NOT EXISTS。",
     },
+
+    # ---------------- 六、写语句填空（DDL / DML / 约束 / 子查询） ----------------
+    {
+        "key": "w_01",
+        "kind": "blank",
+        "title": "建表：两列该用什么类型",
+        "level": "easy",
+        "source": "Lab4 · Homework Task 3",
+        "brief": "books 表：id 是整数，published 是出版日期。按 Lab4 给的脚本口径填。",
+        "parts": [{
+            "label": "",
+            "lines": [
+                "CREATE TABLE books (",
+                "  id ____,",
+                "  name VARCHAR(20),",
+                "  published ____",
+                ");",
+            ],
+        }],
+        "blanks": [
+            {"accept": ["INT", "INTEGER"], "hint": "整数用哪个类型？",
+             "why": "id 是整数，写 INT（INTEGER 同义）。"},
+            {"accept": ["DATE"], "hint": "只存年月日、不带时间，用哪个类型？",
+             "why": "published 只到「日」，用 DATE；要精确到时分秒才用 DATETIME。"},
+        ],
+        "note": "建表时类型选错不会立刻报错，但之后插入或比较会出问题。"
+                "INT / VARCHAR(n) / DATE 是最常用的三个。",
+    },
+    {
+        "key": "w_02",
+        "kind": "blank",
+        "title": "插入一行数据",
+        "level": "easy",
+        "source": "Lab3 · Task 1",
+        "brief": "给 branch 表插一条记录。",
+        "parts": [{
+            "label": "",
+            "lines": ["INSERT ____ branch VALUES ('B005', 'p5');"],
+        }],
+        "blanks": [{
+            "accept": ["INTO"],
+            "hint": "INSERT 后面必须跟哪个介词？",
+            "why": "INSERT INTO 表名 VALUES (...)。漏掉 INTO 直接语法错误。",
+        }],
+        "note": "插入属于 DML；列的顺序要和表定义一致，或者显式写 INSERT INTO branch(branchNo, postcode)。",
+    },
+    {
+        "key": "w_03",
+        "kind": "blank",
+        "title": "改数据：把某类 CD 涨价",
+        "level": "easy",
+        "source": "Lab5 · SELECT Part 2",
+        "brief": "把 Rock 类别的价格上调 20%。",
+        "parts": [{
+            "label": "",
+            "lines": ["UPDATE CD", "____ price = price * 1.2", "WHERE genre = 'Rock';"],
+        }],
+        "blanks": [{
+            "accept": ["SET"],
+            "hint": "UPDATE 表名之后、赋值之前，用哪个关键字？",
+            "why": "UPDATE … SET 列 = 值 WHERE …。漏掉 SET 是最常见的语法错误。",
+        }],
+        "note": "WHERE 千万别漏 —— 不写 WHERE 会把整张表都改掉。",
+    },
+    {
+        "key": "w_04",
+        "kind": "blank",
+        "title": "删数据：只删一条",
+        "level": "easy",
+        "source": "Lab3 · Task 3",
+        "brief": "删掉学号为 156123 的选课记录（表结构还在）。",
+        "parts": [{
+            "label": "",
+            "lines": ["DELETE ____ enrolment", "WHERE id = 156123;"],
+        }],
+        "blanks": [{
+            "accept": ["FROM"],
+            "hint": "DELETE 后面要跟表名，中间差一个介词。",
+            "why": "DELETE FROM 表名 WHERE …。这和 DROP TABLE（连表结构一起删）不是一回事。",
+        }],
+        "note": "DELETE FROM 只删行，属于 DML；DROP TABLE 删整张表，属于 DDL。",
+    },
+    {
+        "key": "w_05",
+        "kind": "blank",
+        "title": "给已有表加一列",
+        "level": "medium",
+        "source": "L2 · ALTER TABLE",
+        "brief": "staff 表要加一列 salary，类型 DECIMAL(8,2)。",
+        "parts": [{
+            "label": "",
+            "lines": ["ALTER TABLE staff", "____ COLUMN salary DECIMAL(8,2);"],
+        }],
+        "blanks": [{
+            "accept": ["ADD"],
+            "hint": "「新增」这一列用哪个动词？（不是 MODIFY，那是改已有的列）",
+            "why": "用 ADD COLUMN。MODIFY COLUMN 是修改已存在的列的属性，删列用 DROP COLUMN。",
+        }],
+        "note": "ALTER TABLE 的四件常用事：ADD / DROP / MODIFY（MySQL）/ CHANGE（改名+改类型）。",
+    },
+    {
+        "key": "w_06",
+        "kind": "blank",
+        "title": "自引用外键：员工指向自己的上级",
+        "level": "hard",
+        "source": "Lab3 · Foreign Key",
+        "brief": "managerNo 引用同一张表的 staffNo（主管也是员工）。",
+        "parts": [{
+            "label": "",
+            "lines": [
+                "CREATE TABLE staff (",
+                "  staffNo CHAR(4) PRIMARY KEY,",
+                "  managerNo CHAR(4),",
+                "  FOREIGN KEY (managerNo) ____ staff(staffNo)",
+                ");",
+            ],
+        }],
+        "blanks": [{
+            "accept": ["REFERENCES"],
+            "hint": "外键要说明「引用哪张表的哪一列」，哪个关键字负责这件事？",
+            "why": "写 REFERENCES staff(staffNo)。也可以写成 FOREIGN KEY … REFERENCES 的完整形式。",
+        }],
+        "note": "外键可以指向本表 —— 这就是「自引用」，组织架构、分类树都用它。",
+    },
+    {
+        "key": "w_07",
+        "kind": "blank",
+        "title": "两列组合起来必须唯一",
+        "level": "medium",
+        "source": "L2 · 约束",
+        "brief": "同一本书的同一个作者只能出现一次。",
+        "parts": [{
+            "label": "",
+            "lines": [
+                "CREATE TABLE authors_of_books (",
+                "  author_id INT,",
+                "  book_id INT,",
+                "  ____ (author_id, book_id)",
+                ");",
+            ],
+        }],
+        "blanks": [{
+            "accept": ["UNIQUE", "PRIMARY KEY"],
+            "hint": "「组合起来不能重复」可以用哪个约束？两种写法都行，但语义不同。",
+            "why": "UNIQUE (author_id, book_id) 最贴合题意（允许 NULL、可多个）；"
+                   "写 PRIMARY KEY 也合法，但一张表只能有一个主键，语义变成「这张表靠这两列识别」。",
+        }],
+        "note": "UNIQUE 可以跨多列组合，且允许多个 NULL；主键不行。",
+    },
+    {
+        "key": "w_08",
+        "kind": "blank",
+        "title": "子查询：没选 MC1 的学生",
+        "level": "medium",
+        "source": "Lab4 · SELECT Part 1",
+        "brief": "用 EXISTS 的写法（不是 IN）。",
+        "parts": [{
+            "label": "",
+            "lines": [
+                "SELECT name FROM Student s",
+                "WHERE ____ EXISTS (",
+                "  SELECT 1 FROM Enrolment e",
+                "  WHERE e.id = s.id AND e.code = 'MC1'",
+                ");",
+            ],
+        }],
+        "blanks": [{
+            "accept": ["NOT"],
+            "hint": "「没选」= 那个查询查不到任何行。",
+            "why": "NOT EXISTS：子查询查不到行时才为真。写 EXISTS 会得到「选了 MC1 的人」，正好相反。",
+        }],
+        "note": "NOT EXISTS 比 NOT IN 安全：子查询里有 NULL 时 NOT IN 会整段失效，NOT EXISTS 不会。",
+    },
+    {
+        "key": "w_09",
+        "kind": "blank",
+        "title": "分组之后再筛：哪种曲风超过 2 张",
+        "level": "medium",
+        "source": "Lab5 · SELECT Part 2",
+        "brief": "WHERE 不能筛聚合结果，要用另一个关键字。",
+        "parts": [{
+            "label": "",
+            "lines": [
+                "SELECT genre, COUNT(*) AS n",
+                "FROM CD",
+                "GROUP BY genre",
+                "____ COUNT(*) > 2;",
+            ],
+        }],
+        "blanks": [{
+            "accept": ["HAVING"],
+            "hint": "WHERE 在分组前筛行；分组后筛「组」用哪个？",
+            "why": "用 HAVING。写 WHERE 会报错或筛错 —— 聚合函数不能出现在 WHERE 里。",
+        }],
+        "note": "执行顺序：FROM → WHERE（筛行）→ GROUP BY → HAVING（筛组）→ ORDER BY → LIMIT。",
+    },
+    {
+        "key": "w_10",
+        "kind": "blank",
+        "title": "只要最贵的那一张",
+        "level": "medium",
+        "source": "Lab5 · SELECT Part 2",
+        "brief": "先按价格降序，再只取第一行。",
+        "parts": [{
+            "label": "",
+            "lines": ["SELECT title, price FROM CD", "ORDER BY price DESC", "____ 1;"],
+        }],
+        "blanks": [{
+            "accept": ["LIMIT", "LIMIT 1"],
+            "hint": "MySQL 里「只取前 N 行」的关键字。",
+            "why": "写 LIMIT 1（这里是只填空，所以填 LIMIT）。SQL Server 用 TOP、Oracle 用 ROWNUM，MySQL 用 LIMIT。",
+        }],
+        "note": "ORDER BY 是排序、LIMIT 是截断，两者经常一起用来取「最 X 的一条」。",
+    },
+    {
+        "key": "w_11",
+        "kind": "blank",
+        "title": "给算出来的列起名字",
+        "level": "easy",
+        "source": "Lab5 · SELECT Part 2",
+        "brief": "含税价那一列最后要叫 `Full Price`。",
+        "parts": [{
+            "label": "",
+            "lines": ["SELECT title, ROUND(price * 1.2, 2) ____ `Full Price`", "FROM CD;"],
+        }],
+        "blanks": [{
+            "accept": ["AS"],
+            "hint": "给表达式/列起别名用哪个词？（也可以省略，但这里要填）",
+            "why": "写 AS `Full Price`（反引号）。别名带空格时必须用反引号包起来，否则会被当成两个词。",
+        }],
+        "note": "AS 也可以省（SELECT price p），但加上更清楚；别名里带空格时反引号不能省。",
+    },
 ]
 
 SQL_TASK_MAP = {t["key"]: t for t in SQL_TASKS}
