@@ -1593,3 +1593,31 @@ button.wb-pick:disabled { cursor: default; opacity: .75; }
 
 /* 109 道题的抬头两行（搜索框 + 计数）贴着顶部时别透出下面的题 */
 .asm-list-bar + .asm-list-head { margin-bottom: 2px; }
+
+/* ===== SQL 训练：表结构参考卡 ===== */
+.sql-schema {
+  margin: 4px 0 14px; padding: 9px 12px 10px;
+  border: 1px solid var(--border); border-radius: 8px;
+  background: var(--pre-bg);
+}
+.sql-schema-head {
+  font-size: 11px; color: var(--text-2); letter-spacing: .2px; margin-bottom: 5px;
+}
+.sql-schema-head .muted { opacity: .75; }
+.sql-schema-row {
+  display: flex; align-items: baseline; gap: 10px;
+  padding: 2px 0; font-size: 11.5px; line-height: 1.75;
+}
+.sql-schema-row b {
+  flex: 0 0 auto; min-width: 88px;
+  font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
+  font-size: 12px; color: var(--text);
+}
+.sql-schema-row span {
+  flex: 1; min-width: 0; color: var(--text-2); word-break: break-word;
+}
+.sql-schema-row i { font-style: normal; opacity: .8; }
+.sql-schema-row em {
+  font-style: normal; color: var(--accent);
+  font-size: 10px; letter-spacing: .2px;
+}

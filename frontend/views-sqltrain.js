@@ -295,6 +295,34 @@ function buildSqlQuery(t) {
   return wrap;
 }
 
+
+/* 表结构卡：表名 + 列名(类型) PK/FK。学生要写 WHERE 就得先看到列名 */
+function buildSqlSchema(t) {
+  const list = t.schema || [];
+  if (!list.length) return null;
+  const wrap = document.createElement("div");
+  wrap.className = "sql-schema";
+
+  const head = document.createElement("div");
+  head.className = "sql-schema-head";
+  head.innerHTML = `表结构 <span class="muted">列名不分大小写 · PK 主键 · FK 外键</span>`;
+  wrap.appendChild(head);
+
+  list.forEach((tb) => {
+    const row = document.createElement("div");
+    row.className = "sql-schema-row";
+    const name = document.createElement("b");
+    name.textContent = tb.name;
+    const cols = document.createElement("span");
+    cols.innerHTML = (tb.columns || []).map((c) =>
+      `${esc(c.name)} <i>${esc(c.type)}</i>${c.key ? ` <em>${esc(c.key)}</em>` : ""}`
+    ).join(" · ");
+    row.append(name, cols);
+    wrap.appendChild(row);
+  });
+  return wrap;
+}
+
 /* ---------------- 给表算结果（填空版，同 Revision Q17-3） ---------------- */
 function renderSqlTableBlank(t, saved) {
   const box = document.querySelector("#sql-question");
@@ -339,6 +367,10 @@ function fmtAsk(text) {
 function renderSqlBlank(t, saved) {
   const box = document.querySelector("#sql-question");
   box.innerHTML = "";
+
+  // 没有列名就没法写 WHERE / JOIN —— 题干下面第一块永远是表结构
+  const schema = buildSqlSchema(t);
+  if (schema) box.appendChild(schema);
 
   const label = document.createElement("div");
   label.className = "asm-label";

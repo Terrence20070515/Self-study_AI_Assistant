@@ -11,6 +11,8 @@
 """
 BLANK = "____"
 
+from .sql_schema import schema_for  # noqa: E402
+
 LEVEL_LABEL = {"easy": "易", "medium": "中", "hard": "难"}
 KIND_LABEL = {"choice": "选择", "blank": "填空"}
 
@@ -966,6 +968,8 @@ def public_task(t: dict) -> dict:
     else:
         out["parts"] = t["parts"]
         out["blanks"] = [{"hint": b.get("hint", ""), "why": b.get("why", "")} for b in t["blanks"]]
+        # 写语句题必须带表结构：只给题干、不给列名，等于让人瞎猜
+        out["schema"] = schema_for(t["key"])
     return out
 
 

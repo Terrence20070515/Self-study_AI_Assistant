@@ -22,6 +22,7 @@ import pymysql
 
 sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 
+from backend.sql_schema import SCHEMA, SQL_REFS  # noqa: E402
 from backend.sql_tasks import SQL_TASKS  # noqa: E402
 
 SOCKET = os.environ.get("VERIFY_MYSQL_SOCKET", "/tmp/mysql.sock")
@@ -178,6 +179,45 @@ SETUP = {
 }
 
 
+def _norm_type(t: str) -> str:
+    return t.lower().replace(" ", "")
+
+
+def check_schema(conn):
+    """卡片上写的表名/列名/类型，必须和 information_schema 完全一致。
+
+    这张卡是学生写 SQL 时唯一的参考，写错了比不给更糟 —— 所以不靠人眼核对。
+    """
+    bad = []
+    with conn.cursor() as cur:
+        cur.execute(
+            "SELECT TABLE_NAME, COLUMN_NAME, COLUMN_TYPE FROM information_schema.columns "
+            "WHERE TABLE_SCHEMA=%s", (DB,))
+        actual = {}
+        for tbl, col, typ in cur.fetchall():
+            actual.setdefault(tbl.lower(), {})[col.lower()] = _norm_type(typ)
+
+    for task_key, tables in SQL_REFS.items():
+        for t in tables:
+            if t not in SCHEMA:
+                bad.append(f"{task_key}: 引用了未定义的表 {t}")
+                continue
+            if t.lower() not in actual:
+                bad.append(f"{task_key}: 卡片上的表 {t} 在库里不存在")
+                continue
+            real = actual[t.lower()]
+            declared = {c["name"].lower(): _norm_type(c["type"]) for c in SCHEMA[t]}
+            for col, typ in declared.items():
+                if col not in real:
+                    bad.append(f"{t}.{col}: 卡片有、库里没有")
+                elif real[col] != typ:
+                    bad.append(f"{t}.{col}: 卡片写 {typ}，库里是 {real[col]}")
+            for col in real:
+                if col not in declared:
+                    bad.append(f"{t}.{col}: 库里有、卡片漏了")
+    return bad
+
+
 def connect(db=None):
     return pymysql.connect(unix_socket=SOCKET, user="root", database=db, autocommit=True)
 
@@ -213,6 +253,12 @@ def variants(task):
 def main():
     conn = connect()
     failures, warnings, total_runs = [], [], 0
+
+    rebuild(conn)
+    failures += check_schema(conn)
+    print(f"表结构卡核对：{len(SCHEMA)} 张表"
+          + ("，全部与真实库一致" if not failures else f"，{len(failures)} 处不一致"))
+    print()
     rows_report = []
 
     for task in SQL_TASKS:
