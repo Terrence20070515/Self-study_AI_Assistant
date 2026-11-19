@@ -431,7 +431,10 @@ function renderSqlBlank(t, saved) {
   if (first && !values.length) setTimeout(() => first.focus(), 60);
 }
 
-function blankInputs() {
+/* 注意：不要叫 blankInputs —— views-asm.js 里已经有一个同名函数，
+   普通 <script> 没有模块作用域，后加载的会把它覆盖掉。
+   曾因此让汇编训练的判分去读隐藏的 SQL 视图里的输入框，写对的答案被判 0/3。 */
+function sqlBlankInputs() {
   // 代码填空用 .asm-blank，算结果填空用 .sql-ans-input（也是 .asm-blank 的样式）
   return [...document.querySelectorAll("#sql-question .asm-blank")];
 }
@@ -442,7 +445,7 @@ function saveSqlDraft() {
   if (!t) return;
   const payload = t.kind === "choice"
     ? { picks: [...sqlState.picks] }
-    : { answers: blankInputs().map((i) => i.value) };
+    : { answers: sqlBlankInputs().map((i) => i.value) };
   try { localStorage.setItem(sqlDraftKey(sqlState.currentKey), JSON.stringify(payload)); } catch (e) { /* 存不下就算了 */ }
 }
 
@@ -457,7 +460,7 @@ async function checkSql() {
     if (!sqlState.picks.size) return toast("先选一个再检查");
     body = { task_key: t.key, picks: [...sqlState.picks] };
   } else {
-    const answers = blankInputs().map((i) => i.value);
+    const answers = sqlBlankInputs().map((i) => i.value);
     if (!answers.some((a) => a.trim())) return toast("先填几个空再检查");
     body = { task_key: t.key, answers };
   }

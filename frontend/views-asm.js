@@ -74,6 +74,8 @@ function renderAsmList() {
   asmState.tasks.forEach((t, i) => {
     const p = asmState.progress[t.key];
     const best = p ? p.best || 0 : null;
+    // 后端按 10 分制归一化：score = round(correct * 10 / total)
+    const full = 10;
     const el = document.createElement("button");
     el.className = "asm-item" + (t.key === asmState.currentKey ? " active" : "");
     el.innerHTML =
@@ -82,7 +84,7 @@ function renderAsmList() {
          <b>${esc(t.title)}</b>
          <em>${esc(t.source)} · ${esc(t.level)}</em>
        </span>
-       <span class="asm-item-score${best === null ? "" : (best >= 7 ? " ok" : " half")}">`
+       <span class="asm-item-score${best === null ? "" : (best >= full ? " ok" : " half")}">`
        + `${best === null ? "—" : best + "/10"}</span>`;
     el.onclick = () => selectAsmTask(t.key);
     box.appendChild(el);
