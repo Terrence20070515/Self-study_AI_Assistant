@@ -8,6 +8,7 @@ const sqlState = {
   progress: {},
   currentKey: null,
   picks: new Set(),     // 选择题当前勾选
+  filter: "",           // 左栏搜索词（109 道题，不给筛选根本翻不过来）
   busy: false,
 };
 
@@ -70,16 +71,47 @@ function isFull(key) {
 function renderSqlList() {
   const box = document.querySelector("#sql-list");
   if (!box) return;
+  const keepScroll = box.scrollTop;      // 每次选中都会重画左栏，滚动位置得接住
   box.innerHTML = "";
   const passed = sqlState.tasks.filter((t) => isFull(t.key)).length;
 
+  // 搜索框固定在顶部（跟着列表一起滚会看不见）
+  const bar = document.createElement("div");
+  bar.className = "asm-list-bar";
+  bar.innerHTML = `<input id="sql-filter" class="asm-filter" type="search"
+    placeholder="搜题：JOIN / NULL / 外键…" spellcheck="false" autocomplete="off">`;
+  box.appendChild(bar);
+  const input = bar.querySelector("#sql-filter");
+  input.value = sqlState.filter;
+  input.oninput = () => {
+    sqlState.filter = input.value.trim();
+    renderSqlList();
+    const again = document.querySelector("#sql-filter");
+    if (again) { again.focus(); again.setSelectionRange(again.value.length, again.value.length); }
+  };
+
+  const kw = sqlState.filter.toLowerCase();
+  const shown = kw
+    ? sqlState.tasks.filter((t) =>
+        (t.title + " " + t.source + " " + (SQL_KIND_LABEL[t.kind] || "")).toLowerCase().includes(kw))
+    : sqlState.tasks;
+
   const head = document.createElement("div");
   head.className = "asm-list-head";
-  head.innerHTML = `<span>${sqlState.tasks.length} 道题</span>
+  head.innerHTML = `<span>${kw ? `匹配 ${shown.length} / ${sqlState.tasks.length}` : `${sqlState.tasks.length} 道题`}</span>
     <span class="asm-list-pass">满分 ${passed}</span>`;
   box.appendChild(head);
 
-  sqlState.tasks.forEach((t, i) => {
+  if (!shown.length) {
+    const empty = document.createElement("div");
+    empty.className = "asm-list-hint";
+    empty.textContent = "没有匹配的题，换个词试试（比如 JOIN、NULL、INDEX）。";
+    box.appendChild(empty);
+    box.scrollTop = 0;
+    return;
+  }
+
+  shown.forEach((t, i) => {
     const p = sqlState.progress[t.key];
     const best = p ? p.best || 0 : null;
     const total = t.total || 1;
@@ -96,6 +128,7 @@ function renderSqlList() {
     el.onclick = () => selectSqlTask(t.key);
     box.appendChild(el);
   });
+  box.scrollTop = keepScroll;
 }
 
 function selectSqlTask(key) {

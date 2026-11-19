@@ -1563,3 +1563,33 @@ button.wb-pick:disabled { cursor: default; opacity: .75; }
 /* 算结果填空：输入框嵌在题干里 */
 .sql-ask-blank { line-height: 2.4; }
 .sql-ans-input { width: 90px; text-align: center; font-size: 13px; }
+
+/* ===== SQL 训练左栏：109 道题，必须能滚 + 能搜 ===== */
+/* .asm-list 是和汇编训练共用的；那边只有 17 道，加了上限也不影响 */
+.asm-list {
+  position: sticky; top: 12px;
+  max-height: calc(100vh - 168px);
+  overflow-y: auto;
+  padding-right: 2px;
+}
+.asm-list-bar {
+  position: sticky; top: 0; z-index: 2;
+  padding: 0 0 8px; background: var(--bg);
+}
+.asm-filter {
+  width: 100%; box-sizing: border-box;
+  padding: 6px 10px; border-radius: 7px;
+  background: var(--surface); color: var(--text);
+  border: 1px solid var(--border);
+  font-family: inherit; font-size: 12px;
+  outline: none;
+}
+.asm-filter:focus { border-color: var(--accent); }
+.asm-filter::placeholder { color: var(--text-2); opacity: .75; }
+.asm-list-head {
+  position: sticky; top: 34px; z-index: 2;
+  background: var(--bg);
+}
+
+/* 109 道题的抬头两行（搜索框 + 计数）贴着顶部时别透出下面的题 */
+.asm-list-bar + .asm-list-head { margin-bottom: 2px; }

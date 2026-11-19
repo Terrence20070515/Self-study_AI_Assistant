@@ -335,7 +335,7 @@ SQL_TASKS = [
             "label": "",
             "lines": [
                 "SELECT author_id, name",
-                "FROM books INNER JOIN authors_of_books ____ (books.id = authors_of_books.book_id)",
+                "FROM books INNER JOIN authors_of_books ____ (books.book_id = authors_of_books.book_id)",
                 "WHERE published < '2000-01-01';",
             ],
         }],
@@ -902,7 +902,7 @@ SQL_TASKS = [
             "lines": ["SELECT title, price FROM CD", "ORDER BY price DESC", "____ 1;"],
         }],
         "blanks": [{
-            "accept": ["LIMIT", "LIMIT 1"],
+            "accept": ["LIMIT"],
             "hint": "MySQL 里「只取前 N 行」的关键字。",
             "why": "写 LIMIT 1（这里是只填空，所以填 LIMIT）。SQL Server 用 TOP、Oracle 用 ROWNUM，MySQL 用 LIMIT。",
         }],
@@ -927,6 +927,12 @@ SQL_TASKS = [
         "note": "AS 也可以省（SELECT price p），但加上更清楚；别名里带空格时反引号不能省。",
     },
 ]
+
+# 第二批（覆盖 lecture 其余语法）放在独立文件里，避免主文件无限变长；
+# **必须在 SQL_TASK_MAP 之前 extend**，否则新题能显示却提交不了。
+from .sql_tasks_extra import EXTRA_SQL_TASKS  # noqa: E402
+
+SQL_TASKS.extend(EXTRA_SQL_TASKS)
 
 SQL_TASK_MAP = {t["key"]: t for t in SQL_TASKS}
 
