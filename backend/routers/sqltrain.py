@@ -56,13 +56,13 @@ def api_sql_check(cid: str, body: dict):
     if not task:
         raise HTTPException(404, "没有这道题")
 
-    if task["kind"] == "choice":
+    if task["kind"] in ("choice", "table"):
         picks = [str(x).strip().upper() for x in (body.get("picks") or []) if str(x).strip()]
         picks = sorted({p for p in picks if p in "ABCDEF"})
         want = sorted(task["answer"])
         ok = picks == want
         detail = {
-            "kind": "choice",
+            "kind": task["kind"],
             "score": 1 if ok else 0,
             "total": 1,
             "picked": picks,

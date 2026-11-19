@@ -1534,3 +1534,28 @@ button.wb-pick:disabled { cursor: default; opacity: .75; }
   background: var(--accent-weak); font-size: 12.5px; line-height: 1.8;
 }
 .sql-note b { color: var(--accent); }
+
+/* ===== SQL 训练：给表算结果 ===== */
+.sql-tables { display: flex; gap: 18px; flex-wrap: wrap; margin: 6px 0 12px; }
+.sql-table-wrap { flex: 0 0 auto; }
+.sql-table-cap {
+  font-size: 12px; font-weight: 700; color: var(--text-2);
+  letter-spacing: .4px; margin-bottom: 3px; padding-left: 2px;
+}
+.sql-table {
+  border-collapse: collapse; font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
+  font-size: 12px; background: var(--surface);
+}
+.sql-table th, .sql-table td {
+  border: 1px solid var(--border); padding: 4px 14px; text-align: center;
+  min-width: 44px; color: var(--text);
+}
+.sql-table th { background: var(--pre-bg); font-weight: 700; color: var(--text-2); }
+.sql-table td.sql-null { color: var(--text-2); font-style: italic; }
+.sql-table tbody tr:hover td { background: var(--accent-weak); }
+
+.sql-query { margin-bottom: 10px; }
+.sql-ask {
+  font-size: 13px; line-height: 1.75; margin: 2px 0 10px; color: var(--text);
+}
+.sql-ask b { color: var(--accent); }

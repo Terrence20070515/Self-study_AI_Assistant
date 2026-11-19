@@ -409,6 +409,154 @@ SQL_TASKS = [
         }],
         "note": "外键的参照动作：ON DELETE / ON UPDATE 各能配 CASCADE、SET NULL、RESTRICT、NO ACTION。",
     },
+
+    # ---------------- 四、给表算结果（画表 + 查询 → 判断结果） ----------------
+    # 表数据取自课程那份 CPT103 SQL Revision（R / S 两张关系），答案逐条用 sqlite 跑过
+    {
+        "key": "tbl_01",
+        "kind": "table",
+        "title": "UNION 去重后哪些元组不在结果里",
+        "level": "medium",
+        "source": "Revision · 集合运算",
+        "brief": "r 和 s 结构相同。UNION 会去重，先想清楚两表合起来一共剩几行。",
+        "tables": [
+            {"name": "r", "columns": ["a", "b", "c"],
+             "rows": [[1, 2, 3], [2, 3, 6], [3, 3, 1], [4, 1, 3]]},
+            {"name": "s", "columns": ["a", "b", "c"],
+             "rows": [[4, 2, 3], [3, 3, 4], [1, 1, 3], [8, 1, 3]]},
+        ],
+        "query": "select distinct * from (select * from r union select * from s) as t;",
+        "question": "下列哪个元组**没有**出现在结果里？",
+        "options": ["(2, 1, 3)", "(3, 3, 1)", "(3, 3, 4)", "(1, 1, 3)"],
+        "answer": ["A"],
+        "note": "两表各 4 行且没有完全相同的行，UNION 后是 8 行。除了 (2,1,3)，另外三个都在里面。"
+                "注意 UNION 去重、UNION ALL 不去重，这题若换成 UNION ALL 就是 8 行不变、但不会多也不会少。",
+    },
+    {
+        "key": "tbl_02",
+        "kind": "table",
+        "title": "IN 子查询：哪一行被筛掉",
+        "level": "medium",
+        "source": "Revision · 子查询",
+        "brief": "子查询取的是 s 的 b 列，不是 s 的 a 列 —— 这是最容易看错的地方。",
+        "tables": [
+            {"name": "r", "columns": ["a", "b", "c"],
+             "rows": [[1, 2, 3], [2, 3, 6], [3, 3, 1], [4, 1, 3]]},
+            {"name": "s", "columns": ["a", "b", "c"],
+             "rows": [[4, 2, 3], [3, 3, 4], [1, 1, 3], [8, 1, 3]]},
+        ],
+        "query": "select * from r where a in (select distinct b from s);",
+        "question": "下列哪一行**不在**结果里？",
+        "options": ["(1, 2, 3)", "(2, 3, 6)", "(4, 1, 3)", "(3, 3, 1)"],
+        "answer": ["C"],
+        "note": "s.b 的去重集合是 {2, 3, 1}，所以 r 里 a 为 1、2、3 的行都留下；"
+                "(4,1,3) 的 a=4 不在集合里，被筛掉。",
+    },
+    {
+        "key": "tbl_03",
+        "kind": "table",
+        "title": "换一组数据再做一次 IN 子查询",
+        "level": "medium",
+        "source": "Revision · 子查询",
+        "brief": "表换了一份，但查询一模一样。别凭上一题的记忆答。",
+        "tables": [
+            {"name": "r", "columns": ["a", "b", "c"],
+             "rows": [[7, 1, 5], [5, 2, 1], [4, 6, 1], [7, 3, 1]]},
+            {"name": "s", "columns": ["a", "b", "c"],
+             "rows": [[3, 5, 1], [6, 3, 6], [8, 7, 3], [4, 2, 3]]},
+        ],
+        "query": "select * from r where a in (select distinct b from s);",
+        "question": "下列哪一行**不在**结果里？",
+        "options": ["(7, 1, 5)", "(5, 2, 1)", "(7, 3, 1)", "(4, 6, 1)"],
+        "answer": ["D"],
+        "note": "s.b = {5, 3, 7, 2}，r 里 a 为 7、5、7 的三行留下（7 出现两次都留），a=4 的 (4,6,1) 被筛掉。",
+    },
+    {
+        "key": "tbl_04",
+        "kind": "table",
+        "title": "笛卡尔积 + 条件：结果几行",
+        "level": "medium",
+        "source": "Revision · 连接",
+        "brief": "FROM r, s 不带条件就是 4×4=16 行，再按 where 过滤。",
+        "tables": [
+            {"name": "r", "columns": ["a", "b", "c"],
+             "rows": [[1, 2, 3], [2, 3, 6], [3, 3, 1], [4, 1, 3]]},
+            {"name": "s", "columns": ["a", "b", "c"],
+             "rows": [[4, 2, 3], [3, 3, 4], [1, 1, 3], [8, 1, 3]]},
+        ],
+        "query": "select count(*) from r, s where r.a > s.a;",
+        "question": "这条查询返回的数字是多少？",
+        "options": ["3", "4", "5", "6"],
+        "answer": ["B"],
+        "note": "16 个组合里逐个比：r.a=1 时没有 s.a 更小；r.a=2 时 s.a=1 命中 1 个；"
+                "r.a=3 时 s.a=1 命中 1 个；r.a=4 时 s.a=1、3 命中 2 个。合计 4。",
+    },
+    {
+        "key": "tbl_05",
+        "kind": "table",
+        "title": "UNION 里两个 SELECT 列数不同吗",
+        "level": "hard",
+        "source": "Revision · 集合运算",
+        "brief": "左边取 a、b，右边取 b、c。列数相同但含义不同 —— 想清楚每一列来自哪。",
+        "tables": [
+            {"name": "r", "columns": ["a", "b", "c"],
+             "rows": [[1, 2, 3], [2, 3, 6], [3, 3, 1], [4, 1, 3]]},
+            {"name": "s", "columns": ["a", "b", "c"],
+             "rows": [[4, 2, 3], [3, 3, 4], [1, 1, 3], [8, 1, 3]]},
+        ],
+        "query": "select * from (select distinct a, b from r union select b, c from s) as t;",
+        "question": "关于这个结果，下列哪些说法正确？",
+        "options": [
+            "结果一共 6 行",
+            "(3, 3) 在结果里",
+            "(2, 2) 在结果里",
+            "结果第二列的和等于 16",
+        ],
+        "answer": ["A", "B", "D"],
+        "note": "左边 (1,2)(2,3)(3,3)(4,1)；右边 s 的 (b,c) 是 (2,3)(3,4)(1,3)(1,3)，去重后三个。"
+                "合起来并去重：(1,2)(1,3)(2,3)(3,3)(3,4)(4,1) 共 6 行，第二列 2+3+3+3+4+1=16。"
+                "(2,2) 不在其中。",
+    },
+    {
+        "key": "tbl_06",
+        "kind": "table",
+        "title": "NOT IN 遇上 NULL 子查询",
+        "level": "hard",
+        "source": "Revision · 三值逻辑",
+        "brief": "t 的 c 列有 NULL，子查询结果里也有 NULL。先别急着数行，想想 NOT IN 怎么展开。",
+        "tables": [
+            {"name": "t", "columns": ["a", "b", "c"],
+             "rows": [[1, 2, 3], [2, 3, None], [3, 3, 1]]},
+            {"name": "s2", "columns": ["c"], "rows": [[3], [None]]},
+        ],
+        "query": "select * from t where c not in (select c from s2);",
+        "question": "这条查询返回几行？",
+        "options": ["0 行", "1 行", "2 行", "3 行"],
+        "answer": ["A"],
+        "note": "c NOT IN (3, NULL) 等价于 c<>3 AND c<>NULL。后面那半永远是 NULL，"
+                "所以整个条件对任何行都不成立 —— 结果 0 行。（换成 IN 会返回 1 行：(1,2,3)。）"
+                "这也是为什么子查询里要先排除 NULL。",
+    },
+    {
+        "key": "tbl_07",
+        "kind": "table",
+        "title": "左连接会补出几行空",
+        "level": "medium",
+        "source": "Lab5 · Outer Join",
+        "brief": "student 左连接 enrolment：没选课的学生也要出现。",
+        "tables": [
+            {"name": "student", "columns": ["id", "name"],
+             "rows": [[1, "Ann"], [2, "Bob"], [3, "Cara"]]},
+            {"name": "enrolment", "columns": ["id", "code"],
+             "rows": [[1, "MC1"], [1, "MC2"]]},
+        ],
+        "query": "select s.id, s.name, e.code\nfrom student s left join enrolment e on s.id = e.id;",
+        "question": "结果里 code 为 NULL 的行有几行？",
+        "options": ["0 行", "1 行", "2 行", "3 行"],
+        "answer": ["C"],
+        "note": "Ann 有两条选课记录，出两行；Bob 和 Cara 在 enrolment 里没有匹配，"
+                "左连接补 NULL 各出一行 —— 一共 4 行，其中 2 行 code 为 NULL。",
+    },
 ]
 
 SQL_TASK_MAP = {t["key"]: t for t in SQL_TASKS}
@@ -426,8 +574,13 @@ def public_task(t: dict) -> dict:
         "note": t.get("note", ""),
         "total": len(t.get("blanks", [])) if t["kind"] == "blank" else 1,
     }
-    if t["kind"] == "choice":
-        out["stem"] = t["stem"]
+    if t["kind"] in ("choice", "table"):
+        if t["kind"] == "choice":
+            out["stem"] = t["stem"]
+        else:
+            out["tables"] = t["tables"]
+            out["query"] = t["query"]
+            out["question"] = t["question"]
         out["options"] = t["options"]
         out["multi"] = len(t["answer"]) > 1
     else:
@@ -438,6 +591,6 @@ def public_task(t: dict) -> dict:
 
 def answer_key(t: dict) -> dict:
     """提交后才返回的答案。"""
-    if t["kind"] == "choice":
+    if t["kind"] in ("choice", "table"):
         return {"answer": t["answer"]}
     return {"accept": [b.get("accept", []) for b in t["blanks"]]}

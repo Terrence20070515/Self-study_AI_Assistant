@@ -12,6 +12,7 @@ const sqlState = {
 };
 
 const SQL_CODES = ["SOE101"];
+const SQL_KIND_LABEL = { choice: "选择", table: "算结果", blank: "填空" };
 
 function sqlSupported(course) {
   return SQL_CODES.includes(String((course && course.code) || "").toUpperCase());
@@ -88,7 +89,7 @@ function renderSqlList() {
       `<span class="asm-item-no">${String(i + 1).padStart(2, "0")}</span>
        <span class="asm-item-body">
          <b>${esc(t.title)}</b>
-         <em>${esc(t.source)} · ${esc(t.level)} · ${t.kind === "choice" ? "选择" : "填空"}</em>
+         <em>${esc(t.source)} · ${esc(t.level)} · ${SQL_KIND_LABEL[t.kind] || "填空"}</em>
        </span>
        <span class="asm-item-score${best === null ? "" : (best >= total ? " ok" : " half")}">`
        + `${best === null ? "—" : best + "/" + total}</span>`;
@@ -105,7 +106,7 @@ function selectSqlTask(key) {
 
   document.querySelector("#sql-title").textContent = t.title;
   document.querySelector("#sql-meta").textContent =
-    `${t.level} · ${t.source} · ${t.kind === "choice" ? "选择" : "填空"}`;
+    `${t.level} · ${t.source} · ${SQL_KIND_LABEL[t.kind] || "填空"}`;
   document.querySelector("#sql-brief").textContent = t.brief;
   document.querySelector("#sql-result").innerHTML = "";
   const hint = document.querySelector("#sql-hint-box");
@@ -116,6 +117,7 @@ function selectSqlTask(key) {
   try { saved = JSON.parse(localStorage.getItem(sqlDraftKey(key)) || "null"); } catch (e) { saved = null; }
 
   if (t.kind === "choice") renderSqlChoice(t, saved);
+  else if (t.kind === "table") renderSqlTable(t, saved);
   else renderSqlBlank(t, saved);
 
   const p = sqlState.progress[key];
@@ -143,6 +145,11 @@ function renderSqlChoice(t, saved) {
     : "单选　<span class=\"muted\">选完点「提交检查」</span>";
   box.appendChild(tip);
 
+  box.appendChild(buildSqlOptions(t));
+}
+
+/* 选项列表（选择题与算结果题共用） */
+function buildSqlOptions(t) {
   const list = document.createElement("div");
   list.className = "sql-opts";
   t.options.forEach((txt, i) => {
@@ -161,7 +168,84 @@ function renderSqlChoice(t, saved) {
     };
     list.appendChild(el);
   });
-  box.appendChild(list);
+  return list;
+}
+
+/* ---------------- 给表算结果 ---------------- */
+function renderSqlTable(t, saved) {
+  const box = document.querySelector("#sql-question");
+  box.innerHTML = "";
+  if (saved && Array.isArray(saved.picks)) sqlState.picks = new Set(saved.picks);
+
+  // 表：(name) + 表头 + 数据行；NULL 单独上色
+  const tables = document.createElement("div");
+  tables.className = "sql-tables";
+  (t.tables || []).forEach((tb) => {
+    const wrap = document.createElement("div");
+    wrap.className = "sql-table-wrap";
+    const cap = document.createElement("div");
+    cap.className = "sql-table-cap";
+    cap.textContent = tb.name;
+    wrap.appendChild(cap);
+    const table = document.createElement("table");
+    table.className = "sql-table";
+    const thead = document.createElement("thead");
+    const hr = document.createElement("tr");
+    (tb.columns || []).forEach((c) => {
+      const th = document.createElement("th");
+      th.textContent = c;
+      hr.appendChild(th);
+    });
+    thead.appendChild(hr);
+    table.appendChild(thead);
+    const tbody = document.createElement("tbody");
+    (tb.rows || []).forEach((row) => {
+      const tr = document.createElement("tr");
+      row.forEach((v) => {
+        const td = document.createElement("td");
+        if (v === null || v === undefined) {
+          td.textContent = "NULL";
+          td.className = "sql-null";
+        } else {
+          td.textContent = String(v);
+        }
+        tr.appendChild(td);
+      });
+      tbody.appendChild(tr);
+    });
+    table.appendChild(tbody);
+    wrap.appendChild(table);
+    tables.appendChild(wrap);
+  });
+  box.appendChild(tables);
+
+  const label = document.createElement("div");
+  label.className = "asm-label";
+  label.textContent = "查询";
+  box.appendChild(label);
+  const q = document.createElement("pre");
+  q.className = "sql-stem sql-query";
+  q.textContent = t.query;
+  box.appendChild(q);
+
+  const ask = document.createElement("div");
+  ask.className = "sql-ask";
+  ask.innerHTML = fmtAsk(t.question);
+  box.appendChild(ask);
+
+  const tip = document.createElement("div");
+  tip.className = "asm-label";
+  tip.innerHTML = t.multi
+    ? "可选多项　<span class=\"muted\">选完点「提交检查」；少选或错选都算错</span>"
+    : "单选　<span class=\"muted\">选完点「提交检查」</span>";
+  box.appendChild(tip);
+
+  box.appendChild(buildSqlOptions(t));
+}
+
+/* 题干里的 **加粗** 转成 <b>，其余转义 */
+function fmtAsk(text) {
+  return esc(String(text || "")).replace(/\*\*(.+?)\*\*/g, "<b>$1</b>");
 }
 
 /* ---------------- 填空题 ---------------- */
@@ -249,7 +333,7 @@ async function checkSql() {
   if (!t) return;
 
   let body;
-  if (t.kind === "choice") {
+  if (t.kind === "choice" || t.kind === "table") {
     if (!sqlState.picks.size) return toast("先选一个再检查");
     body = { task_key: t.key, picks: [...sqlState.picks] };
   } else {
@@ -304,7 +388,7 @@ function renderSqlResult(r, t) {
     : `<b>${r.score}/${r.total}</b>`;
   box.appendChild(head);
 
-  if (r.kind === "choice") {
+  if (r.kind === "choice" || r.kind === "table") {
     const list = document.querySelector("#sql-question .sql-opts");
     (r.options || []).forEach((o) => {
       const el = list && list.querySelector(`.sql-opt[data-letter="${o.letter}"]`);
@@ -377,5 +461,6 @@ document.querySelector("#btn-sql-clear").onclick = () => {
   sqlState.picks = new Set();
   document.querySelector("#sql-result").innerHTML = "";
   if (t.kind === "choice") renderSqlChoice(t, null);
+  else if (t.kind === "table") renderSqlTable(t, null);
   else renderSqlBlank(t, null);
 };
